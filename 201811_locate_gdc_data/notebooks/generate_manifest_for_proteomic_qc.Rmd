@@ -1,0 +1,57 @@
+---
+title: "Generate manifest for proteomic QC"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+Load the sample IDs used in proteomic QC
+```{r}
+proteomic_samples <- read_lines('../proteomic_samples.list')
+proteomic_samples_cptac_only <- str_subset(proteomic_samples, '^C3[NL]-')
+proteomic_samples_gtex_only <- str_subset(proteomic_samples, '^PT-')
+
+samples_like_gtex_normals <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
+```
+
+Load the GDC annotated VCF manifest
+```{r}
+annoated_vcf_manifest <- read_tsv('../gdc_manifests/CPTAC_annotated_VCFs_with_caseID_fullset.2018-11-21.txt')
+```
+
+Find the annotated VCFs
+```{r}
+genomic_samples <- annoated_vcf_manifest %>%
+    filter(
+        `case ID` %in% proteomic_samples_cptac_only
+        & endsWith(file_name, '.vcf.gz')
+    ) %>% pull(`case ID`) %>% unique()
+
+genomic_samples
+length(genomic_samples)
+```
+
+```{r}
+intersect(genomic_samples, samples_like_gtex_normals)
+```
+
+```{r}
+annoated_vcf_manifest_gdc_only <- annoated_vcf_manifest %>%
+    filter(
+        `case ID` %in% genomic_samples 
+        & endsWith(file_name, '.vcf.gz')
+    )
+```
+
+Make sure each sample has 4 VCFs
+```{r}
+nrow(annoated_vcf_manifest_gdc_only) == length(genomic_samples) * 4
+```
+
+```{r}
+write_tsv(annoated_vcf_manifest_gdc_only, '../../201811_proteomic_qc/gbm_annotated_vcfs.2018-11-26.txt')
+```
+
+
