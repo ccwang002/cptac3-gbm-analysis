@@ -1,0 +1,157 @@
+---
+title: "Locate GBM samples"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+
+## Proteomic samples
+Read the list of GBM samples used by Tao
+
+```{r}
+proteomic_samples <- read_lines('../proteomic_samples.list')
+proteomic_samples_cptac_only <- str_subset(proteomic_samples, '^C3[NL]-')
+proteomic_samples_gtex_only <- str_subset(proteomic_samples, '^PT-')
+
+samples_like_gtex_normals <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
+```
+
+
+
+## Genomic samples on GDC
+```{r}
+all_gdc_samples <- read_tsv(
+    '../matt_catelog/CPTAC3.cases.dat',
+    col_names = c('case_id', 'cancer_type')
+)
+genomic_samples <- all_gdc_samples %>% filter(cancer_type == 'GBM') %>% pull(case_id) %>% sort()
+genomic_samples
+```
+
+```{r}
+shared_samples <- intersect(genomic_samples, proteomic_samples)
+
+str_interp('Total samples in proteomic QC: ${length(proteomic_samples)}')
+str_interp('Total CPTAC samples in proteomic QC: ${length(proteomic_samples_cptac_only)}')
+str_interp('Total genomic samples available on GDC: ${length(genomic_samples)}')
+str_interp('GBM samples shared by both genomic and proteomic: ${length(shared_samples)}')
+```
+
+```{r}
+gbm_seq_data <- read_tsv('../matt_catelog/CPTAC3.SR.dat') %>%
+    rename(data_name = `# sample_name`) %>%
+    filter(case %in% genomic_samples) 
+```
+
+
+### hg38 WXS
+```{r}
+wxs_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'WXS' & reference == 'hg38') %>% 
+    select(case, sample_type, UUID) %>%
+    spread(sample_type, UUID) %>%
+    rename(wxs_blood_normal_bam = blood_normal, wxs_tumor_bam = tumor)
+
+wxs_uuid_tbl %>% head()
+```
+
+### hg38 WGS
+Note that all the GBM samples have their hg19 WGS ready.
+
+```{r}
+wgs_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'WGS' & reference == 'hg38') %>% 
+    select(case, sample_type, UUID) %>%
+    spread(sample_type, UUID) %>%
+    rename(wgs_blood_normal_BAM = blood_normal, wgs_tumor_BAM = tumor)
+
+wgs_uuid_tbl %>% head()
+```
+
+
+### RNA-seq
+```{r}
+rna_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'RNA-Seq') %>%
+    mutate(strand = str_match(data_name, '\\.RNA-Seq\\.(R[12])\\.\\w$')[, 2]) %>% 
+    mutate(key = str_c('rna', sample_type, strand, 'fastq', sep = '_')) %>%
+    select(case, key, UUID) %>%
+    spread(key = key, value = UUID)
+
+rna_uuid_tbl %>% head()
+```
+
+
+### miRNA-seq
+miRNA-seq only has one strand.
+
+```{r}
+mirna_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'miRNA-Seq') %>%
+    mutate(key = str_c('mirna', sample_type, 'fastq', sep = '_'))  %>%
+    select(case, key, UUID) %>%
+    spread(key = key, value = UUID)
+
+mirna_uuid_tbl %>% head()
+```
+
+
+### Merge all omic-seq data
+```{r}
+gbm_omics_uuid_tbl <- reduce(
+    list(tibble(case = genomic_samples), wxs_uuid_tbl, wgs_uuid_tbl, rna_uuid_tbl, mirna_uuid_tbl),
+    function(x, y) {full_join(x, y, by = 'case')}
+) %>%
+    arrange(case)
+
+gbm_omics_uuid_tbl
+```
+
+```{r}
+write_tsv(gbm_omics_uuid_tbl, '../tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv')
+```
+
+
+
+## Local location of the genomic data
+```{r}
+local_data_location_tbl <- map_dfr(
+    c('../matt_catelog/MGI.BamMap.dat', '../matt_catelog/katmai.BamMap.dat'),
+    function(x) {
+        read_tsv(
+            x, 
+            progress = FALSE,
+            col_types =  cols(
+                `# sample_name` = col_character(),
+                case = col_character(),
+                disease = col_character(),
+                experimental_strategy = col_character(),
+                sample_type = col_character(),
+                data_path = col_character(),
+                filesize = col_double(),
+                data_format = col_character(),
+                reference = col_character(),
+                UUID = col_character(),
+                system = col_character()
+            )
+        ) %>%
+            rename(data_name = `# sample_name`) %>%
+            filter(case %in% genomic_samples)
+    }
+) 
+```
+
+```{r}
+local_data_location_tbl %>% filter(system == 'MGI' & experimental_strategy == 'WXS') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+```
+
+```{r}
+local_data_location_tbl %>% filter(system == 'katmai' & experimental_strategy == 'RNA-Seq') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+```
+
