@@ -10,6 +10,7 @@ with open(OMIC_UUID_MANIFEST) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
     SAMPLES = set(row['case'] for row in reader)
 
+SALMON_INDEX = 'processed_data/tx_ref/ensembl_90_good_tsl_index'
 
 
 rule link_gdc_rna_fastq:
@@ -79,3 +80,35 @@ rule subset_cdna_fa:
         tx_list=rules.export_tx_good_tsl.output[0]
     output: 'processed_data/tx_ref/ensembl_90.cdna.good_tsl.fa.gz'
     script: 'scripts/subset_cdna.py'
+
+
+rule build_salmon_index:
+    """Build Salmon transcript index."""
+    input: rules.subset_cdna_fa.output[0]
+    output: 'processed_data/tx_ref/ensembl_90_good_tsl_index/hash.bin'
+    params: salmon_ix=SALMON_INDEX
+    threads: 2
+    shell:
+        'salmon index --threads {threads} -t {input} -i {params.salmon_ix}'
+
+
+rule quant_one_sample:
+    """Gene quantification on one sample using Salmon."""
+    input:
+        r1_fq='external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
+        r2_fq='external_data/GDC_RNA_fq/{sample}.R2.fastq.gz'
+    output: 'processed_data/quants/{sample}/quant.sf'
+    params:
+        salmon_ix=SALMON_INDEX,
+        out_folder='processed_data/quants/{sample}'
+    threads: 4
+    log: 'logs/salmon_quants/{sample}.log'
+    shell:
+        'salmon quant -i {params.salmon_ix} -l A --gcBias '
+        '-1 {input.r1_fq} -2 {input.r2_fq} '
+        '-p {threads} -o {params.out_folder} '
+        '2> {log}'
+
+
+rule quant_all_samples:
+    input: expand('processed_data/quants/{sample}/quant.sf', sample=SAMPLES)
