@@ -76,8 +76,15 @@ rule all_gdc_annotated_mafs:
     input: expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz', sample=SAMPLES, caller=CALLERS)
 
 
-rule load_raw_vcfs_to_db:
-    """Load raw VCFs to the database."""
-    input: raw_vcfs=rules.link_gdc_raw_vcfs.output
+#rule load_raw_vcfs_to_db:
+#    """Load raw VCFs to the database."""
+#    input: raw_vcfs=rules.link_gdc_raw_vcfs.output
+#    output: db='processed_data/gdc_mut_calls.sqlite'
+#    script: 'scripts/make_db.py'
+
+
+rule load_gdc_mafs_to_db:
+    """Load annotated GDC MAfs to the database."""
+    input: mafs=rules.all_gdc_annotated_mafs.input
     output: db='processed_data/gdc_mut_calls.sqlite'
-    script: 'scripts/make_db.py'
+    script: 'scripts/load_maf_to_db.py'
