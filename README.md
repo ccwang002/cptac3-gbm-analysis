@@ -16,3 +16,7 @@ Locate the current GDC data release of CPTAC3 GBM cohort and their local whereab
 The preliminary analysis to help Tao from PNNL to design the proteomic
 experiment plexes. The main goal is to address the 5 tumors that are clustered
 with GTEx normals using single-shot mass spectrometry.
+
+
+### `201811_rnaseq_salmon`
+RNA quantification of high-confident protein coding trasncripts (Ensembl v90). Only transcripts of protein coding with TSL 1 or TSL NA (e.g. single exon trasncripts) were included. Note that CPTAC used total RNA-seq, so the mapping rate using this approach is low.
