@@ -1,0 +1,81 @@
+import csv
+from pathlib import Path
+
+OMIC_UUID_MANIFEST = '../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
+ENSEMBL_VER = '90'
+
+SAMPLES = set()
+with open(OMIC_UUID_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    SAMPLES = set(row['case'] for row in reader)
+
+
+
+rule link_gdc_rna_fastq:
+    """Link the RNA-seq fastqs locally."""
+    input: manifest=OMIC_UUID_MANIFEST,
+           local_map=KATMAI_MAP
+    output: expand('external_data/GDC_RNA_fq/{sample}.{read}.fastq.gz', sample=SAMPLES, read=['R1', 'R2'])
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                # Keep only RNA-seq UUIDs
+                if row['experimental_strategy'] == 'RNA-Seq':
+                    uuid_to_local_file_pth[row['UUID']] = Path(row['data_path'])
+
+        # Link the FASTQs
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case']
+                r1_uuid = row['rna_tumor_R1_fastq']
+                r2_uuid = row['rna_tumor_R2_fastq']
+
+                r1_src_pth = uuid_to_local_file_pth[r1_uuid]
+                r2_src_pth = uuid_to_local_file_pth[r2_uuid]
+                r1_dst_pth = Path(f'external_data/GDC_RNA_fq/{sample}.R1.fastq.gz')
+                r2_dst_pth = Path(f'external_data/GDC_RNA_fq/{sample}.R2.fastq.gz')
+                r1_dst_pth.symlink_to(r1_src_pth)
+                r2_dst_pth.symlink_to(r2_src_pth)
+
+
+rule download_tx_ref:
+    """Download transcript related reference files."""
+    output:
+        gtf='external_data/genome_ref/Homo_sapiens.GRCh38.90.gtf.gz',
+        cdna='external_data/genome_ref/Homo_sapiens.GRCh38.cdna.all.fa.gz'
+    params:
+        ensembl_gtf_url='ftp://ftp.ensembl.org/pub/release-90/gtf/homo_sapiens/Homo_sapiens.GRCh38.90.gtf.gz',
+        ensembl_cdna_url='ftp://ftp.ensembl.org/pub/release-90/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz'
+    shell:
+        '''
+        curl {params.ensembl_gtf_url} -o {output.gtf}
+        curl {params.ensembl_cdna_url} -o {output.cdna}
+        '''
+
+
+rule create_gffutils_db:
+    """Create a GTF database for fast query."""
+    input: rules.download_tx_ref.output['gtf']
+    output: 'processed_data/ensembl_tx_gtf_90.db'
+    script: 'scripts/create_gffutils_db.py'
+
+
+rule export_tx_good_tsl:
+    """Export transcript IDs of good TSL and protein coding."""
+    input: rules.create_gffutils_db.output[0]
+    output: 'processed_data/ensembl_tx_ids_good_tsl.list'
+    script: 'scripts/export_high_conf_protein_coding_transcripts.py'
+
+
+rule subset_cdna_fa:
+    """Subset the cDNA fasta file."""
+    input:
+        cdna_fa=rules.download_tx_ref.output['cdna'],
+        tx_list=rules.export_tx_good_tsl.output[0]
+    output: 'processed_data/tx_ref/ensembl_90.cdna.good_tsl.fa.gz'
+    script: 'scripts/subset_cdna.py'
