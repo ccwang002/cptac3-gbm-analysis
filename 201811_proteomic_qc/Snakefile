@@ -48,7 +48,36 @@ rule link_gdc_annotated_vcfs:
                 dst_pth.symlink_to(src_vcf_pth)
 
 
+rule annotated_vcf_to_maf:
+    """Convert one annotated GDC VCF to MAF without re-annotation by VEP."""
+    input: 'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz'
+    output:
+        uncompress_vcf=temp('processed_data/gdc_temp_vcfs/{sample}.{caller}.vcf'),
+        maf='processed_data/gdc_mafs/{sample}.{caller}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that remove the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/gdc_mafs/{sample}.{caller}.maf'
+    shell:
+        '''
+        gunzip -c {input} > {output.uncompress_vcf}
+        perl {params.vcf2maf} \
+            --input-vcf {output.uncompress_vcf} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.sample}.T --normal-id {wildcards.sample}.N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38
+        gzip -9 {params.uncompress_maf}
+        '''
+
+
+rule all_gdc_annotated_mafs:
+    """Convert all GDC annotated VCFs to MAFs."""
+    input: expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz', sample=SAMPLES, caller=CALLERS)
+
+
 rule load_raw_vcfs_to_db:
+    """Load raw VCFs to the database."""
     input: raw_vcfs=rules.link_gdc_raw_vcfs.output
     output: db='processed_data/gdc_mut_calls.sqlite'
     script: 'scripts/make_db.py'
