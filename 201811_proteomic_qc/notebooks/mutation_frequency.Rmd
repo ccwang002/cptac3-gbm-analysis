@@ -1,0 +1,102 @@
+---
+title: "Mutation frequency"
+output: html_notebook
+---
+
+This notebook calculates the mutation frequency across samples
+
+```{r}
+library(tidyverse)
+library(DBI)
+library(RSQLite)
+```
+
+```{r}
+conn = dbConnect(RSQLite::SQLite(), dbname='../processed_data/gdc_mut_calls.sqlite')
+dbExecute(conn, 'PRAGMA cache_size=-4000000')
+dbExecute(conn, 'PRAGMA temp_store=MEMORY')
+dbExecute(conn, 'PRAGMA query_only=1')
+dbListTables(conn)
+```
+
+List all the samples with VCF available
+```{r}
+all_genomic_samples <- dbGetQuery(conn, "SELECT DISTINCT sample FROM gdc")$sample
+all_genomic_samples
+
+weird_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
+
+intersect(weird_samples, all_genomic_samples)
+```
+
+```{r}
+mut_per_sample_tbl <- as.tibble(dbGetQuery(conn, "SELECT sample, count(*) AS num_mut FROM gdc GROUP BY sample")) %>%
+    mutate(clustered_with_gtex = sample %in% weird_samples)
+```
+
+```{r, fig.width=8, fig.height=4}
+ggplot(mut_per_sample_tbl, aes(x=sample, y=num_mut, color = clustered_with_gtex)) + 
+    geom_point() + 
+    scale_color_manual(values = c(`FALSE` = 'gray', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.justification = c(1, 1),
+        legend.position = c(.99, .99)
+    ) + 
+    labs(y = 'Number of mutations', x = NULL) + 
+    guides(color = guide_legend(title = 'Clustered with GTEx normals'))
+```
+
+```{r}
+plot_tbl <- as.tibble(dbGetQuery(conn, "SELECT sample, t_allele_freq, n_allele_freq FROM gdc WHERE n_depth >= 10 AND t_depth >= 10")) %>%
+    mutate(clustered_with_gtex = sample %in% weird_samples)
+```
+
+
+```{r, fig.width=8, fig.height=4}
+ggplot(plot_tbl, aes(x = sample, y = t_allele_freq, fill = clustered_with_gtex)) + 
+    geom_violin() + 
+    scale_fill_manual(values = c(`FALSE` = 'white', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.justification = c(1, 1),
+        legend.position = c(.99, .99)
+    ) + 
+    labs(y = 'Tumor allele frequency', x = NULL) + 
+    guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
+```
+
+```{r}
+bad_calls_tbl <- as.tibble(dbGetQuery(conn, 
+    "
+        SELECT 
+            sample,
+            avg(t_depth) AS t_depth,
+            avg(n_depth) AS n_depth,
+            avg(t_alt_count) / avg(t_depth) AS t_allele_freq,
+            avg(n_alt_count) / avg(n_depth) AS n_allele_freq,
+            group_concat(caller, '|') AS callers
+        FROM gdc_per_caller 
+        WHERE filter IS NOT NULL
+        GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
+        HAVING t_depth >= 10 AND n_depth >= 10
+    ")) %>%
+    mutate(clustered_with_gtex = sample %in% weird_samples)
+```
+
+```{r, fig.width=8, fig.height=4}
+ggplot(bad_calls_tbl, aes(x = sample, y = n_allele_freq, fill = clustered_with_gtex)) + 
+    geom_violin() + 
+    scale_fill_manual(values = c(`FALSE` = 'white', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.justification = c(1, 1),
+        legend.position = c(.99, .99)
+    ) + 
+    labs(y = 'Normal allele frequency', x = NULL) + 
+    guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
+```
+
