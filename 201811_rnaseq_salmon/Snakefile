@@ -1,4 +1,5 @@
 import csv
+from collections import namedtuple
 from pathlib import Path
 
 OMIC_UUID_MANIFEST = '../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
@@ -11,6 +12,43 @@ with open(OMIC_UUID_MANIFEST) as f:
     SAMPLES = set(row['case'] for row in reader)
 
 SALMON_INDEX = 'processed_data/tx_ref/ensembl_90_good_tsl_index'
+
+
+# GTEx {{{
+GTExBAM = namedtuple('GTExBAM', 'case srr_id')
+GTEX_BRAIN_CORTEX_SAMPLES = [
+    GTExBAM(*case) for case in [
+        # case        brain cortex SRR id
+        ["GTEX-R55F", "SRR1417912"],
+        ["GTEX-RU72", "SRR1475168"],
+        ["GTEX-Y8DK", "SRR1480059"],
+        ["GTEX-Q2AG", "SRR602927"],
+        ["GTEX-NPJ7", "SRR604026"],
+        # ["GTEX-R55F", "SRR615213"],
+        ["GTEX-QVJO", "SRR615838"],
+        ["GTEX-UTHO", "SRR656745"],
+        ["GTEX-WVLH", "SRR810877"],
+    ]
+]
+all_gtex_brain_cortex_bams = expand('external_data/GTEx_RNA_bam/{case}.brain_cortex.bam', case=[s.case for s in GTEX_BRAIN_CORTEX_SAMPLES])
+
+rule copy_gtex_rnaseq_bams:
+    output: all_gtex_brain_cortex_bams
+    params:
+        mgi_bam_root='/gscmnt/gc2802/halllab/cchiang/projects/gtex/rna-seq/4101/bam'
+    run:
+        for sample in GTEX_BRAIN_CORTEX_SAMPLES:
+            shell(
+                "rsync -a --info=progress2 --partial --bwlimit=25000 "
+                "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam "
+                "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam"
+            )
+            shell(
+                "rsync -a --info=progress2 "
+                "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam.bai "
+                "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam.bai"
+            )
+# }}}
 
 
 rule link_gdc_rna_fastq:
