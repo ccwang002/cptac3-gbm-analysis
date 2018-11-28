@@ -30,7 +30,7 @@ SELECT
     variant_type, variant_classification,
     symbol, gene, transcript_id, tsl, biotype, consequence, canonical,
     hgvsc, hgvsp, hgvsp_short,
-    all_effects,
+    all_effects
 FROM gdc_raw_per_caller
 WHERE filter IN ('PASS', 'panel_of_normals')
 GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
