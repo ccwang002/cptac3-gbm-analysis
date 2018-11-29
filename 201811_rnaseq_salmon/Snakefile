@@ -15,39 +15,61 @@ SALMON_INDEX = 'processed_data/tx_ref/ensembl_90_good_tsl_index'
 
 
 # GTEx {{{
-GTExBAM = namedtuple('GTExBAM', 'case srr_id')
-GTEX_BRAIN_CORTEX_SAMPLES = [
-    GTExBAM(*case) for case in [
-        # case        brain cortex SRR id
-        ["GTEX-R55F", "SRR1417912"],
-        ["GTEX-RU72", "SRR1475168"],
-        ["GTEX-Y8DK", "SRR1480059"],
-        ["GTEX-Q2AG", "SRR602927"],
-        ["GTEX-NPJ7", "SRR604026"],
-        # ["GTEX-R55F", "SRR615213"],
-        ["GTEX-QVJO", "SRR615838"],
-        ["GTEX-UTHO", "SRR656745"],
-        ["GTEX-WVLH", "SRR810877"],
-    ]
+GTEX_brain_cortex_samples = [
+    'GTEX-R55F-1326-SM-5S2V4', 'GTEX-RU72-3026-SM-5SI7Y', 'GTEX-Y8DK-0826-SM-4TT3T',
+    'GTEX-Q2AG-2926-SM-2HMJ3', 'GTEX-NPJ7-2726-SM-2I3FT', 'GTEX-R55F-1326-SM-2TF5F',
+    'GTEX-QVJO-1426-SM-2S1QY', 'GTEX-UTHO-3026-SM-3GAFB', 'GTEX-WVLH-3026-SM-3MJG9'
 ]
-all_gtex_brain_cortex_bams = expand('external_data/GTEx_RNA_bam/{case}.brain_cortex.bam', case=[s.case for s in GTEX_BRAIN_CORTEX_SAMPLES])
 
-rule copy_gtex_rnaseq_bams:
-    output: all_gtex_brain_cortex_bams
-    params:
-        mgi_bam_root='/gscmnt/gc2802/halllab/cchiang/projects/gtex/rna-seq/4101/bam'
-    run:
-        for sample in GTEX_BRAIN_CORTEX_SAMPLES:
-            shell(
-                "rsync -a --info=progress2 --partial --bwlimit=25000 "
-                "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam "
-                "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam"
-            )
-            shell(
-                "rsync -a --info=progress2 "
-                "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam.bai "
-                "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam.bai"
-            )
+# Use ready gene-level GTEx TPMs
+rule download_gtex_gene_tpm:
+    """Download GTEx official release of gene-level TPM."""
+    output: 'external_data/GTEx_v7_gene_tpm.gct.gz'
+    params: url='https://storage.googleapis.com/gtex_analysis_v7/rna_seq_data/GTEx_Analysis_2016-01-15_v7_RNASeQCv1.1.8_gene_tpm.gct.gz'
+    shell:
+        'curl -L -o {output} {params.url}'
+
+
+rule extract_related_gtex:
+    input: rules.download_gtex_gene_tpm.output[0]
+    output: 'processed_data/gtex_selected_samples.tsv.gz'
+    script: 'scripts/extract_gtex.py'
+
+
+# Load GTEx BAMs
+# GTExBAM = namedtuple('GTExBAM', 'case srr_id')
+# GTEX_BRAIN_CORTEX_SAMPLES = [
+#     GTExBAM(*case) for case in [
+#         # case        brain cortex SRR id
+#         ["GTEX-R55F", "SRR1417912"],
+#         ["GTEX-RU72", "SRR1475168"],
+#         ["GTEX-Y8DK", "SRR1480059"],
+#         ["GTEX-Q2AG", "SRR602927"],
+#         ["GTEX-NPJ7", "SRR604026"],
+#         # ["GTEX-R55F", "SRR615213"],
+#         ["GTEX-QVJO", "SRR615838"],
+#         ["GTEX-UTHO", "SRR656745"],
+#         ["GTEX-WVLH", "SRR810877"],
+#     ]
+# ]
+# all_gtex_brain_cortex_bams = expand('external_data/GTEx_RNA_bam/{case}.brain_cortex.bam', case=[s.case for s in GTEX_BRAIN_CORTEX_SAMPLES])
+#
+# rule copy_gtex_rnaseq_bams:
+#     output: all_gtex_brain_cortex_bams
+#     params:
+#         mgi_bam_root='/gscmnt/gc2802/halllab/cchiang/projects/gtex/rna-seq/4101/bam'
+#     run:
+#         for sample in GTEX_BRAIN_CORTEX_SAMPLES:
+#             shell(
+#                 "rsync -a --info=progress2 --partial --bwlimit=25000 "
+#                 "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam "
+#                 "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam"
+#             )
+#             shell(
+#                 "rsync -a --info=progress2 "
+#                 "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam.bai "
+#                 "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam.bai"
+#             )
 
 # The resulting FASTQ files are weird
 # rule gtex_bam_to_fq:
