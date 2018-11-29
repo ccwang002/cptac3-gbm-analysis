@@ -59,7 +59,7 @@ rule bam_readcount_by_regions:
     params:
         genome_fa='/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
     shell:
-        'bam-readcount -w 0 -f {params.genome_fa} {input.bam} -l {input.region}'
+        'bam-readcount -w 0 -f {params.genome_fa} {input.bam} -l {input.region} > {output}'
 
 
 bam_readcount_idh_hotspots_all_samples = expand(
