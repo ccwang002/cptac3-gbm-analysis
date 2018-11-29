@@ -29,8 +29,34 @@ weird_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-0318
 intersect(weird_samples, all_genomic_samples)
 ```
 
+Only use good quality calls:
 ```{r}
-mut_per_sample_tbl <- as.tibble(dbGetQuery(conn, "SELECT sample, count(*) AS num_mut FROM gdc GROUP BY sample")) %>%
+mut_per_sample_tbl <- as.tibble(dbGetQuery(conn, "
+WITH gdc_good_quality AS (
+    SELECT
+        sample, chromosome, start, end, ref_allele, alt_allele,
+        avg(t_depth) AS t_depth,
+        avg(t_ref_count) AS t_ref_count,
+        avg(t_alt_count) AS t_alt_count,
+        avg(n_depth) AS n_depth,
+        avg(n_ref_count) AS n_ref_count,
+        avg(n_alt_count) AS n_alt_count,
+        avg(t_alt_count * 1.0 / t_depth) AS t_allele_freq,
+        avg(n_alt_count * 1.0 / n_depth) AS n_allele_freq,
+        group_concat(caller, '|') AS callers,
+        group_concat(\"filter\", '|') AS \"filter\",
+        variant_type, variant_classification,
+        symbol, gene, transcript_id, tsl, biotype, consequence, canonical,
+        hgvsc, hgvsp, hgvsp_short,
+        all_effects
+    FROM gdc_per_caller
+    WHERE filter IN ('PASS', 'panel_of_normals')
+    GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
+)
+SELECT sample, count(*) AS num_mut
+FROM gdc_good_quality
+GROUP BY sample
+")) %>%
     mutate(clustered_with_gtex = sample %in% weird_samples)
 ```
 
@@ -49,7 +75,32 @@ ggplot(mut_per_sample_tbl, aes(x=sample, y=num_mut, color = clustered_with_gtex)
 ```
 
 ```{r}
-plot_tbl <- as.tibble(dbGetQuery(conn, "SELECT sample, t_allele_freq, n_allele_freq FROM gdc WHERE n_depth >= 10 AND t_depth >= 10")) %>%
+plot_tbl <- as.tibble(dbGetQuery(conn, "
+WITH gdc_good_quality AS (
+    SELECT
+        sample, chromosome, start, end, ref_allele, alt_allele,
+        avg(t_depth) AS t_depth,
+        avg(t_ref_count) AS t_ref_count,
+        avg(t_alt_count) AS t_alt_count,
+        avg(n_depth) AS n_depth,
+        avg(n_ref_count) AS n_ref_count,
+        avg(n_alt_count) AS n_alt_count,
+        avg(t_alt_count * 1.0 / t_depth) AS t_allele_freq,
+        avg(n_alt_count * 1.0 / n_depth) AS n_allele_freq,
+        group_concat(caller, '|') AS callers,
+        group_concat(\"filter\", '|') AS \"filter\",
+        variant_type, variant_classification,
+        symbol, gene, transcript_id, tsl, biotype, consequence, canonical,
+        hgvsc, hgvsp, hgvsp_short,
+        all_effects
+    FROM gdc_per_caller
+    WHERE filter IN ('PASS', 'panel_of_normals')
+    GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
+)
+SELECT sample, t_allele_freq, n_allele_freq
+FROM gdc_good_quality
+WHERE n_depth >= 5 AND t_depth >= 5
+")) %>%
     mutate(clustered_with_gtex = sample %in% weird_samples)
 ```
 
@@ -62,7 +113,8 @@ ggplot(plot_tbl, aes(x = sample, y = t_allele_freq, fill = clustered_with_gtex))
     theme(
         axis.text.x = element_text(angle = 45, hjust = 1),
         legend.justification = c(1, 1),
-        legend.position = c(.99, .99)
+        legend.position = c(0.99, 0.99),
+        legend.direction = 'horizontal'
     ) + 
     labs(y = 'Tumor allele frequency', x = NULL) + 
     guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
@@ -78,10 +130,10 @@ bad_calls_tbl <- as.tibble(dbGetQuery(conn,
             avg(t_alt_count) / avg(t_depth) AS t_allele_freq,
             avg(n_alt_count) / avg(n_depth) AS n_allele_freq,
             group_concat(caller, '|') AS callers
-        FROM gdc_per_caller 
+        FROM gdc_raw_per_caller 
         WHERE filter IS NOT NULL
         GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
-        HAVING t_depth >= 10 AND n_depth >= 10
+        HAVING t_depth >= 5 AND n_depth >= 5
     ")) %>%
     mutate(clustered_with_gtex = sample %in% weird_samples)
 ```

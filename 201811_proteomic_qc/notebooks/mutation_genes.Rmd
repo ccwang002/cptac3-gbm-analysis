@@ -1,0 +1,78 @@
+---
+title: "Details of the mutation calls"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(DBI)
+library(RSQLite)
+```
+
+```{r}
+conn = dbConnect(RSQLite::SQLite(), dbname='../processed_data/gdc_mut_calls.sqlite')
+dbExecute(conn, 'PRAGMA cache_size=-4000000')
+dbExecute(conn, 'PRAGMA temp_store=MEMORY')
+dbExecute(conn, 'PRAGMA query_only=1')
+dbListTables(conn)
+```
+
+```{r}
+all_genomic_samples <- dbGetQuery(conn, "SELECT DISTINCT sample FROM gdc")$sample
+weird_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
+```
+
+Select the good mutation calls
+```{r}
+mut_tbl <- as.tibble(dbGetQuery(conn, "
+SELECT
+    sample, chromosome, start, end, ref_allele, alt_allele,
+    avg(t_depth) AS t_depth,
+    avg(t_ref_count) AS t_ref_count,
+    avg(t_alt_count) AS t_alt_count,
+    avg(n_depth) AS n_depth,
+    avg(n_ref_count) AS n_ref_count,
+    avg(n_alt_count) AS n_alt_count,
+    avg(t_alt_count*1.0 / t_depth) AS t_allele_freq,
+    avg(n_alt_count*1.0 / n_depth) AS n_allele_freq,
+    group_concat(caller, '|') AS callers,
+    group_concat(\"filter\", '|') AS \"filter\",
+    variant_type, variant_classification,
+    symbol, gene, transcript_id, tsl, biotype, consequence, canonical,
+    hgvsc, hgvsp, hgvsp_short,
+    all_effects
+FROM gdc_per_caller
+WHERE filter IN ('PASS', 'panel_of_normals')
+GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
+"))
+```
+
+Check the mutations only about cancer SMGs:
+```{r}
+cancer_smgs <- read_lines('bailey_cancer_smgs.list')
+
+mut_tbl %>% filter(
+    sample %in% weird_samples,
+    symbol %in% cancer_smgs
+    # variant_classification == 'Missense_Mutation'
+) %>% select(
+    sample, symbol, variant_type, variant_classification, n_allele_freq, t_allele_freq, hgvsp_short, callers, everything()
+) %>% filter(
+    variant_classification != 'Intron'
+)
+```
+
+Compare with the other samples:
+```{r}
+mut_tbl %>% filter(
+    !sample %in% weird_samples,
+    symbol %in% cancer_smgs
+    # variant_classification == 'Missense_Mutation'
+) %>% select(
+    sample, symbol, variant_type, variant_classification, n_allele_freq, t_allele_freq, hgvsp_short, callers, everything()
+) %>% filter(
+    variant_classification != 'Intron'
+) %>% 
+    count(sample)
+```
+
