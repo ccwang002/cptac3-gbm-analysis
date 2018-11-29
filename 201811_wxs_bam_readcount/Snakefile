@@ -1,0 +1,72 @@
+import csv
+from collections import namedtuple
+from pathlib import Path
+
+OMIC_UUID_MANIFEST = '../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
+
+SAMPLES = set()
+with open(OMIC_UUID_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    SAMPLES = set(row['case'] for row in reader)
+
+
+rule link_gdc_wxs_bam:
+    """Link the WXS BAM locally."""
+    input: manifest=OMIC_UUID_MANIFEST,
+           local_map=KATMAI_MAP
+    output: expand('external_data/GDC_WXS_bam/{sample}.{bam_type}.{suffix}', sample=SAMPLES, bam_type=['normal', 'tumor'], suffix=['bam', 'bam.bai'])
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                # Keep only WXS UUIDs
+                if row['experimental_strategy'] == 'WXS':
+                    uuid_to_local_file_pth[row['UUID']] = Path(row['data_path'])
+
+        # Link the WXS BAMs and their indices
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case']
+                normal_bam_uuid = row['wxs_blood_normal_bam']
+                tumor_bam_uuid = row['wxs_tumor_bam']
+
+                normal_bam_name = f'{sample}.normal.bam'
+                tumor_bam_name = f'{sample}.tumor.bam'
+
+                for bam_type, uuid, bam_name in [
+                    ('normal', normal_bam_uuid, normal_bam_name),
+                    ('tumor', tumor_bam_uuid, tumor_bam_name),
+                ]:
+                    bam_src_pth = uuid_to_local_file_pth[uuid]
+                    bai_src_pth = bam_src_pth.with_suffix('.bam.bai')
+
+                    bam_dst_pth = Path(f'external_data/GDC_WXS_bam/{sample}.{bam_type}.bam')
+                    bai_dst_pth = bam_dst_pth.with_suffix('.bam.bai')
+                    bam_dst_pth.symlink_to(bam_src_pth)
+                    bai_dst_pth.symlink_to(bai_src_pth)
+
+
+rule bam_readcount_by_regions:
+    """BAM readcount by ROI."""
+    output: 'processed_data/bam_readcounts_roi/{region}/{sample}.{bam_type}.{region}.readcount.tsv'
+    input:
+        bam='external_data/GDC_WXS_bam/{sample}.{bam_type}.bam',
+        region='genomic_roi/{region}.roi'
+    params:
+        genome_fa='/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+    shell:
+        'bam-readcount -w 0 -f {params.genome_fa} {input.bam} -l {input.region}'
+
+
+bam_readcount_idh_hotspots_all_samples = expand(
+    'processed_data/bam_readcounts_roi/{region}/{sample}.{bam_type}.{region}.readcount.tsv',
+    region='idh1_idh2_hotspots', sample=SAMPLES, bam_type=['normal', 'tumor']
+)
+rule bam_readcount_all_rois:
+    """WXS readcount of various regions of interest."""
+    input: bam_readcount_idh_hotspots_all_samples
+
