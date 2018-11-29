@@ -48,6 +48,18 @@ rule copy_gtex_rnaseq_bams:
                 "vw5.gsc.wustl.edu:{params.mgi_bam_root}/{sample.srr_id}.bam.bai "
                 "external_data/GTEx_RNA_bam/{sample.case}.brain_cortex.bam.bai"
             )
+
+# The resulting FASTQ files are weird
+# rule gtex_bam_to_fq:
+#     input: 'external_data/GTEx_RNA_bam/{case}.brain_cortex.bam'
+#     output:
+#         r1='processed_data/GTEx_RNA_fq/{case}.R1.fastq.gz',
+#         r2='processed_data/GTEx_RNA_fq/{case}.R2.fastq.gz'
+#     shell:
+#         'samtools fastq -1 {output.r1} -2 {output.r2} -0 /dev/null -s /dev/null -n {input}'
+
+
+
 # }}}
 
 
