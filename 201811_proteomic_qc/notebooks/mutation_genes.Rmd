@@ -76,3 +76,40 @@ mut_tbl %>% filter(
     count(sample)
 ```
 
+
+## VAF plot
+```{r}
+ordered_samples <- c(setdiff(all_genomic_samples, weird_samples), weird_samples)
+
+plot_tbl <- mut_tbl %>% 
+    filter(
+        symbol %in% c('TP53', 'PTEN', 'NF1', 'RB1', 'BRAF') & 
+        !variant_classification %in% c('Intron', "5'Flank", "3'Flank", "Silent")
+    ) %>%
+    mutate(
+        label = ifelse(hgvsp_short == '', hgvsc, hgvsp_short),
+        suspicious = sample %in% weird_samples,
+        sample = factor(sample, levels = ordered_samples)
+    ) %>%
+    select(sample, suspicious, label, symbol, t_allele_freq, n_allele_freq)
+```
+
+```{r, fig.width=8, fig.height=4}
+ggplot(plot_tbl, aes(x = sample, y = t_allele_freq, color = suspicious)) + 
+    geom_point() + 
+    scale_color_manual(values = c('darkgray', 'red')) + 
+    scale_x_discrete(limits = ordered_samples) +
+    theme_bw() + 
+    theme(axis.text.x = element_text(
+        angle = 45, hjust = 1,
+        colour = ifelse(ordered_samples %in% weird_samples, 'red', '#101010')
+    )) + 
+    guides(color = "none") + 
+    labs(
+        x = NULL, y = 'VAF', 
+        title = 'Coding mutations in TP53, PTEN, NF1, RB1, and BRAF'
+    )
+```
+
+
+
