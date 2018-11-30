@@ -16,9 +16,11 @@ SALMON_INDEX = 'processed_data/tx_ref/ensembl_90_good_tsl_index'
 
 # GTEx {{{
 GTEX_brain_cortex_samples = [
-    'GTEX-R55F-1326-SM-5S2V4', 'GTEX-RU72-3026-SM-5SI7Y', 'GTEX-Y8DK-0826-SM-4TT3T',
-    'GTEX-Q2AG-2926-SM-2HMJ3', 'GTEX-NPJ7-2726-SM-2I3FT', 'GTEX-R55F-1326-SM-2TF5F',
-    'GTEX-QVJO-1426-SM-2S1QY', 'GTEX-UTHO-3026-SM-3GAFB', 'GTEX-WVLH-3026-SM-3MJG9'
+    # 'GTEX-R55F-1326-SM-5S2V4', 'GTEX-R55F-1326-SM-2TF5F',
+    'GTEX-RU72-3026-SM-5SI7Y', 'GTEX-Y8DK-0826-SM-4TT3T',
+    'GTEX-Q2AG-2926-SM-2HMJ3', 'GTEX-NPJ7-2726-SM-2I3FT',
+    'GTEX-QVJO-1426-SM-2S1QY', 'GTEX-UTHO-3026-SM-3GAFB',
+    'GTEX-WVLH-3026-SM-3MJG9'
 ]
 
 # Use ready gene-level GTEx TPMs
@@ -32,7 +34,8 @@ rule download_gtex_gene_tpm:
 
 rule extract_related_gtex:
     input: rules.download_gtex_gene_tpm.output[0]
-    output: 'processed_data/gtex_selected_samples.tsv.gz'
+    output: 'processed_data/gtex_gene_tpm.selected_samples.tsv.gz'
+    params: selected_samples=[*GTEX_brain_cortex_samples]
     script: 'scripts/extract_gtex.py'
 
 
