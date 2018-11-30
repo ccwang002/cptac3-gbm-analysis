@@ -13,3 +13,12 @@ proteomic_samples <- read_lines('../../201811_locate_gdc_data/proteomic_samples.
 suspicious_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
 ```
 
+```{r}
+readcount_tsv <- read_tsv('../../201811_wxs_bam_readcount/processed_data/bam_readcounts_roi/idh1_idh2_hotspots.summary.tsv.gz')
+```
+
+```{r}
+readcount_tsv %>%
+    filter(num_A/depth <= 0.97, num_C/depth <= 0.97, num_G/depth <= 0.97, num_T/depth <= 0.97)
+```
+
