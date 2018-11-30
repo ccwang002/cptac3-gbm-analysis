@@ -1,3 +1,4 @@
+import gzip
 import csv
 from collections import namedtuple
 from pathlib import Path
@@ -63,10 +64,34 @@ rule bam_readcount_by_regions:
 
 
 bam_readcount_idh_hotspots_all_samples = expand(
-    'processed_data/bam_readcounts_roi/{region}/{sample}.{bam_type}.{region}.readcount.tsv',
+    'processed_data/bam_readcounts_roi/'
+    '{region}/{sample}.{bam_type}.{region}.readcount.tsv',
     region='idh1_idh2_hotspots', sample=SAMPLES, bam_type=['normal', 'tumor']
 )
+rule all_idh_hotspots:
+    input: bam_readcount_idh_hotspots_all_samples
+    output: 'processed_data/bam_readcounts_roi/idh1_idh2_hotspots.summary.tsv.gz'
+    run:
+        with gzip.open(output[0], 'wt') as tsvf:
+            cols = ['sample', 'bam_type',
+                    'chromosome', 'position', 'ref', 'depth',
+                    'num_A', 'num_C', 'num_G', 'num_T', 'num_N']
+            writer = csv.writer(tsvf, dialect='excel-tab')
+            writer.writerow(cols)    # write column header
+            for pth in input:
+                sample, bam_type, *_ = Path(pth).name.split('.')
+                with open(pth) as f:
+                    for line in f:
+                        chrom, pos, ref, depth, *stats = line.split('\t')
+                        # The base order: =, A, C, G, T, N. Exclude =
+                        read_counts = []
+                        for stat in stats[1:5]:
+                            base, read_count, *_ = stat.split(':', 2)
+                            read_counts.append(read_count)
+                        writer.writerow([sample, bam_type, chrom, pos, ref, depth, *read_counts])
+
+
 rule bam_readcount_all_rois:
     """WXS readcount of various regions of interest."""
-    input: bam_readcount_idh_hotspots_all_samples
+    input: rules.all_idh_hotspots.output[0]
 
