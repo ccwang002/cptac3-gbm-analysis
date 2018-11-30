@@ -85,7 +85,7 @@ rule all_idh_hotspots:
                         chrom, pos, ref, depth, *stats = line.split('\t')
                         # The base order: =, A, C, G, T, N. Exclude =
                         read_counts = []
-                        for stat in stats[1:5]:
+                        for stat in stats[1:6]:
                             base, read_count, *_ = stat.split(':', 2)
                             read_counts.append(read_count)
                         writer.writerow([sample, bam_type, chrom, pos, ref, depth, *read_counts])
