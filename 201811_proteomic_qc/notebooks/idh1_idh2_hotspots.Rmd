@@ -1,0 +1,15 @@
+---
+title: "IDH1/IDH2 hotspots"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+genomic_samples <- read_tsv('../../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv') %>% pull(case)
+proteomic_samples <- read_lines('../../201811_locate_gdc_data/proteomic_samples.list')
+suspicious_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
+```
+
