@@ -33,6 +33,10 @@ genomic_samples
 ```
 
 ```{r}
+write_lines(genomic_samples, '../genomic_samples.60_cases.list')
+```
+
+```{r}
 shared_samples <- intersect(genomic_samples, proteomic_samples)
 
 str_interp('Total samples in proteomic QC: ${length(proteomic_samples)}')
