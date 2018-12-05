@@ -76,5 +76,15 @@ rule load_gdc_mutation_to_db:
     input:
         raw_vcfs=rules.link_gdc_raw_vcfs.output,
         annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz', sample=SAMPLES, caller=CALLERS)
-    output: db='processed_data/gbm_mut_calls.sqlite'
+    output: db='processed_data/gbm_mut_calls.sqlite', db_state=touch('processed_data/db_state/0_added_gdc')
     script: 'scripts/make_db.py'
+
+
+rule add_washu_mutation_to_db:
+    """Load WashU mutations to the database."""
+    input:
+        washu_maf='external_data/WashU/gbm_60_cases_somatic.somaticwrapper_v1.3.maf.gz',
+        prev_db_state=rules.load_gdc_mutation_to_db.output['db_state']
+    params: db=rules.load_gdc_mutation_to_db.output['db']
+    output: db_state=touch('processed_data/db_state/1_added_washu')
+    script: 'scripts/add_washu_maf.py'

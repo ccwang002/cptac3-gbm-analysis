@@ -53,6 +53,12 @@ class MAF:
         """Define the record class."""
         return namedtuple(f'MAFRecord', self.columns)
 
+
+    def parse_line(self, line, line_no):
+        """Given the MAF record as the whole line, construct the record"""
+        cols = line.rstrip('\n').split('\t')
+        return cols
+
     def make_record(self, vals):
         """Given the MAF record values from a row, construct the record"""
         return self._record_cls._make(vals)
@@ -62,8 +68,26 @@ class MAF:
 
     def __next__(self):
         line_no, line = next(self._reader)
+        cols = self.parse_line(line, line_no)
+        record = self.make_record(cols)
+        return record
+
+
+class TrailingTabTrimmedMAF(MAF):
+    """
+    MAF reader that is tolerable to the rows with trailing tabs removed.
+    """
+    def parse_line(self, line, line_no):
         cols = line.rstrip('\n').split('\t')
-        return self.make_record(cols)
+
+        # If the number of columns are fewer, add empty fields to the end.
+        expect_n_cols = len(self.raw_columns)
+        n_cols = len(cols)
+        if n_cols < expect_n_cols:
+            empty_trailing_cols = [''] * (expect_n_cols - n_cols)
+            cols += empty_trailing_cols
+
+        return cols
 
 
 class GDCMAF(MAF):
@@ -86,6 +110,20 @@ class GDCMAF(MAF):
     def make_record(self, vals):
         # Add caller information
         r = self._record_cls(*vals, self.caller)
+        # Replace chromosome
+        if r.chromosome == 'chrM':
+            chrom = 'MT'
+        else:
+            chrom = r.chromosome[3:]
+        r = r._replace(chromosome=chrom)
+        return r
+
+
+class WashUMAF(TrailingTabTrimmedMAF):
+    """WashU MAF reader"""
+
+    def make_record(self, vals):
+        r = super().make_record(vals)
         # Replace chromosome
         if r.chromosome == 'chrM':
             chrom = 'MT'
