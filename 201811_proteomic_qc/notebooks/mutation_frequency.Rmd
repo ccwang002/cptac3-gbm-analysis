@@ -12,7 +12,8 @@ library(RSQLite)
 ```
 
 ```{r}
-conn = dbConnect(RSQLite::SQLite(), dbname='../processed_data/gdc_mut_calls.sqlite')
+db_pth = '../processed_data/gbm_mut_calls.sqlite'
+conn = dbConnect(RSQLite::SQLite(), dbname=db_pth)
 dbExecute(conn, 'PRAGMA cache_size=-4000000')
 dbExecute(conn, 'PRAGMA temp_store=MEMORY')
 dbExecute(conn, 'PRAGMA query_only=1')
@@ -21,17 +22,64 @@ dbListTables(conn)
 
 List all the samples with VCF available
 ```{r}
-all_genomic_samples <- dbGetQuery(conn, "SELECT DISTINCT sample FROM gdc")$sample
-all_genomic_samples
+genomic_samples <- read_lines('../../201811_locate_gdc_data/genomic_samples.60_cases.list')
+proteomic_samples <- read_lines('../../201811_locate_gdc_data/proteomic_samples.list')
+suspicious_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
 
-weird_samples <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850', 'C3N-03187')
-
-intersect(weird_samples, all_genomic_samples)
+# Make sure all the samples are in the database
+setequal(genomic_samples, dbGetQuery(conn, "SELECT DISTINCT sample FROM gdc")$sample)
+setequal(genomic_samples, dbGetQuery(conn, "SELECT DISTINCT sample FROM washu")$sample)
+intersect(suspicious_samples, genomic_samples)
 ```
 
-Only use good quality calls:
+Create a sample order so all the suspicious samples are together
 ```{r}
-mut_per_sample_tbl <- as.tibble(dbGetQuery(conn, "
+ordered_genomic_samples <- c(
+    setdiff(genomic_samples, suspicious_samples),
+    intersect(genomic_samples, suspicious_samples)
+)
+```
+
+
+Look at the bad mutation calls to see if there are tumor/normal swap.
+```{r}
+bad_calls_tbl <- as.tibble(dbGetQuery(conn, 
+    "
+        SELECT 
+            sample,
+            avg(t_depth) AS t_depth,
+            avg(n_depth) AS n_depth,
+            avg(t_alt_count) / avg(t_depth) AS t_allele_freq,
+            avg(n_alt_count) / avg(n_depth) AS n_allele_freq,
+            group_concat(caller, '|') AS callers
+        FROM gdc_raw_per_caller 
+        WHERE filter IS NOT NULL
+        GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
+        HAVING t_depth >= 5 AND n_depth >= 5
+    ")) %>%
+    mutate(suspicious = sample %in% suspicious_samples)
+```
+
+```{r, fig.width=8, fig.height=4}
+ggplot(bad_calls_tbl, aes(x = sample, y = n_allele_freq, fill = suspicious)) + 
+    geom_violin() + 
+    scale_fill_manual(values = c(`FALSE` = 'white', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    lims(x = ordered_genomic_samples) + 
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.justification = c(1, 1),
+        legend.position = c(.99, .99)
+    ) + 
+    labs(y = 'Normal allele frequency', x = NULL) + 
+    guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
+```
+
+
+
+## Mutation counts of GDC and WashU
+```{r}
+gdc_mut_count_tbl <- as.tibble(dbGetQuery(conn, "
 WITH gdc_good_quality AS (
     SELECT
         sample, chromosome, start, end, ref_allele, alt_allele,
@@ -50,28 +98,115 @@ WITH gdc_good_quality AS (
         hgvsc, hgvsp, hgvsp_short,
         all_effects
     FROM gdc_per_caller
-    WHERE filter IN ('PASS', 'panel_of_normals')
+    WHERE filter = 'PASS'
     GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
 )
 SELECT sample, count(*) AS num_mut
 FROM gdc_good_quality
 GROUP BY sample
 ")) %>%
-    mutate(clustered_with_gtex = sample %in% weird_samples)
+    mutate(suspicious = sample %in% suspicious_samples, source = 'GDC')
+
+washu_mut_count_tbl <- as.tibble(dbGetQuery(conn, "
+SELECT sample, count(*) AS num_mut
+FROM washu
+GROUP BY sample
+")) %>%
+    mutate(suspicious = sample %in% suspicious_samples, source = 'WashU')
 ```
 
-```{r, fig.width=8, fig.height=4}
-ggplot(mut_per_sample_tbl, aes(x=sample, y=num_mut, color = clustered_with_gtex)) + 
+
+```{r, fig.width=9, fig.height=4.5}
+ggplot(gdc_mut_count_tbl, aes(x=sample, y=num_mut, color=suspicious)) + 
     geom_point() + 
-    scale_color_manual(values = c(`FALSE` = 'gray', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    geom_text(data = gdc_mut_count_tbl %>% filter(suspicious), aes(label = num_mut), nudge_y = 300, show.legend = FALSE) + 
+    scale_color_manual(values = c(`FALSE` = 'gray40', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    # ordered by mutation count
+    lims(x = gdc_mut_count_tbl %>% arrange(num_mut) %>% pull(sample)) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.justification = c(0, 1),
+        legend.position = c(.01, .99),
+        legend.direction = 'horizontal'
+    ) + 
+    labs(title = 'GDC mutation count per sample', y = 'Number of mutations', x = NULL) + 
+    guides(color = guide_legend(title = 'Clustered with GTEx normals'))
+
+ggsave('../figures/mutation_count.gdc.pdf', width = 9, height = 4.5, dpi = 300)
+```
+
+WashU
+```{r, fig.width=9, fig.height=4.5}
+ggplot(washu_mut_count_tbl, aes(x=sample, y=num_mut, color = suspicious)) + 
+    geom_point() + 
+    geom_text(data = washu_mut_count_tbl %>% filter(suspicious), aes(label = num_mut), nudge_y = 50, show.legend = FALSE) + 
+    scale_color_manual(values = c(`FALSE` = 'gray40', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    lims(x = washu_mut_count_tbl %>% arrange(num_mut) %>% pull(sample)) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.justification = c(0, 1),
+        legend.position = c(.01, .99),
+        legend.direction = 'horizontal'
+    ) + 
+    labs(title = 'WashU mutation count per sample', y = 'Number of mutations', x = NULL) + 
+    guides(color = guide_legend(title = 'Clustered with GTEx normals'))
+
+ggsave('../figures/mutation_count.washu.pdf', width = 9, height = 4.5, dpi = 300)
+```
+
+
+## Mutation VAF
+
+```{r}
+plot_tbl <- as.tibble(dbGetQuery(conn, "
+SELECT
+    sample, chromosome, start, end, ref_allele, alt_allele,
+    t_alt_count * 1.0 / t_depth AS t_allele_freq,
+    n_alt_count * 1.0 / n_depth AS n_allele_freq
+FROM washu
+")) %>%
+    mutate(suspicious = sample %in% suspicious_samples)
+
+ordered_by_median_vaf <- plot_tbl %>% 
+    group_by(sample) %>% 
+    summarize(vaf_median = median(t_allele_freq)) %>% 
+    arrange(vaf_median) %>% 
+    pull(sample)
+```
+
+```{r}
+```
+
+
+```{r, fig.width=10, fig.height=5}
+ggplot(plot_tbl, aes(x = sample, y = t_allele_freq, fill = suspicious)) + 
+    geom_violin(draw_quantiles=0.5) + 
+    geom_point(
+        data = plot_tbl %>% group_by(sample) %>% mutate(num_mut = n()) %>% filter(num_mut <= 10),
+        aes(color = suspicious),
+        size = 1,
+        show.legend = FALSE
+    ) + 
+    scale_color_manual(values = c(`FALSE` = 'gray80', `TRUE` = 'red')) + 
+    scale_fill_manual(values = c(`FALSE` = 'gray80', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    lims(x = ordered_by_median_vaf) +
     theme_bw() +
     theme(
         axis.text.x = element_text(angle = 45, hjust = 1),
         legend.justification = c(1, 1),
-        legend.position = c(.99, .99)
+        legend.position = c(1, 1.09),
+        legend.direction = 'horizontal',
+        legend.background = element_blank()
     ) + 
-    labs(y = 'Number of mutations', x = NULL) + 
-    guides(color = guide_legend(title = 'Clustered with GTEx normals'))
+    labs(
+        title = 'Mutation VAF distribution (source: WashU)',
+        y = 'Variant allele frequency (VAF)', x = NULL
+    ) + 
+    guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
+
+ggsave('../figures/mutation_vaf.washu.pdf', width = 10, height = 5, dpi = 300)
 ```
 
 ```{r}
@@ -94,61 +229,40 @@ WITH gdc_good_quality AS (
         hgvsc, hgvsp, hgvsp_short,
         all_effects
     FROM gdc_per_caller
-    WHERE filter IN ('PASS', 'panel_of_normals')
+    WHERE filter = 'PASS' AND t_depth >= 5 AND n_depth >= 5
     GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
 )
 SELECT sample, t_allele_freq, n_allele_freq
 FROM gdc_good_quality
-WHERE n_depth >= 5 AND t_depth >= 5
 ")) %>%
-    mutate(clustered_with_gtex = sample %in% weird_samples)
+    mutate(suspicious = sample %in% suspicious_samples)
+
+ordered_by_median_vaf <- plot_tbl %>% 
+    group_by(sample) %>% 
+    summarize(vaf_median = median(t_allele_freq)) %>% 
+    arrange(vaf_median) %>% 
+    pull(sample)
 ```
 
 
-```{r, fig.width=8, fig.height=4}
-ggplot(plot_tbl, aes(x = sample, y = t_allele_freq, fill = clustered_with_gtex)) + 
-    geom_violin() + 
-    scale_fill_manual(values = c(`FALSE` = 'white', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+```{r, fig.width=10, fig.height=5}
+ggplot(plot_tbl, aes(x = sample, y = t_allele_freq, fill = suspicious)) + 
+    geom_violin(draw_quantiles=0.5) + 
+    scale_fill_manual(values = c(`FALSE` = 'gray80', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
+    lims(x = ordered_by_median_vaf) +
     theme_bw() +
     theme(
         axis.text.x = element_text(angle = 45, hjust = 1),
         legend.justification = c(1, 1),
-        legend.position = c(0.99, 0.99),
-        legend.direction = 'horizontal'
+        legend.position = c(1, 1.09),
+        legend.direction = 'horizontal',
+        legend.background = element_blank()
     ) + 
-    labs(y = 'Tumor allele frequency', x = NULL) + 
-    guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
-```
-
-```{r}
-bad_calls_tbl <- as.tibble(dbGetQuery(conn, 
-    "
-        SELECT 
-            sample,
-            avg(t_depth) AS t_depth,
-            avg(n_depth) AS n_depth,
-            avg(t_alt_count) / avg(t_depth) AS t_allele_freq,
-            avg(n_alt_count) / avg(n_depth) AS n_allele_freq,
-            group_concat(caller, '|') AS callers
-        FROM gdc_raw_per_caller 
-        WHERE filter IS NOT NULL
-        GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
-        HAVING t_depth >= 5 AND n_depth >= 5
-    ")) %>%
-    mutate(clustered_with_gtex = sample %in% weird_samples)
-```
-
-```{r, fig.width=8, fig.height=4}
-ggplot(bad_calls_tbl, aes(x = sample, y = n_allele_freq, fill = clustered_with_gtex)) + 
-    geom_violin() + 
-    scale_fill_manual(values = c(`FALSE` = 'white', `TRUE` = 'red'), labels = c(`FALSE` = 'No', `TRUE` = 'Yes')) + 
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.justification = c(1, 1),
-        legend.position = c(.99, .99)
+    labs(
+        title = 'Mutation VAF distribution (source: GDC)',
+        y = 'Variant allele frequency (VAF)', x = NULL
     ) + 
-    labs(y = 'Normal allele frequency', x = NULL) + 
     guides(fill = guide_legend(title = 'Clustered with GTEx normals'))
-```
 
+ggsave('../figures/mutation_vaf.gdc.pdf', width = 10, height = 5, dpi = 300)
+```
