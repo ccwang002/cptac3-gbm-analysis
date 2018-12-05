@@ -158,4 +158,3 @@ local_data_location_tbl %>% filter(system == 'MGI' & experimental_strategy == 'W
 local_data_location_tbl %>% filter(system == 'katmai' & experimental_strategy == 'RNA-Seq') %>%
     select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
 ```
-
