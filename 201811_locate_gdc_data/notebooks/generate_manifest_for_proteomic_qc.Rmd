@@ -9,6 +9,7 @@ library(tidyverse)
 
 Load the sample IDs used in proteomic QC
 ```{r}
+genomic_samples <- read_lines('../genomic_samples.60_cases.list')
 proteomic_samples <- read_lines('../proteomic_samples.list')
 proteomic_samples_cptac_only <- str_subset(proteomic_samples, '^C3[NL]-')
 proteomic_samples_gtex_only <- str_subset(proteomic_samples, '^PT-')
@@ -25,7 +26,7 @@ Find the annotated VCFs
 ```{r}
 genomic_samples <- annoated_vcf_manifest %>%
     filter(
-        `case ID` %in% proteomic_samples_cptac_only
+        `case ID` %in% genomic_samples
         & endsWith(file_name, '.vcf.gz')
     ) %>% pull(`case ID`) %>% unique()
 
@@ -51,7 +52,31 @@ nrow(annoated_vcf_manifest_gdc_only) == length(genomic_samples) * 4
 ```
 
 ```{r}
-write_tsv(annoated_vcf_manifest_gdc_only, '../../201811_proteomic_qc/gbm_annotated_vcfs.2018-11-26.txt')
+write_tsv(annoated_vcf_manifest_gdc_only, '../../201811_proteomic_qc/gdc_manifests/gbm_annotated_vcfs.txt')
 ```
 
+
+## Raw GDC VCF
+
+```{r}
+raw_vcf_manifest <- c(
+    '../gdc_manifests/CPTAC-3_manifest_11052018.txt',   
+    '../gdc_manifests/CPTAC-3.VCFs.batch2.GDC-Manifest_11_16.txt'
+) %>%
+    map_dfr(read_tsv) %>%
+    filter(
+        case_submitter_id %in% genomic_samples,
+        endsWith(file_name, 'raw_somatic_mutation.vcf.gz')
+    ) %>%
+    distinct()
+```
+
+
+```{r}
+nrow(raw_vcf_manifest) == length(genomic_samples) * 4
+```
+
+```{r}
+write_tsv(raw_vcf_manifest, '../../201811_proteomic_qc/gdc_manifests/gbm_raw_vcfs.txt')
+```
 
