@@ -3,8 +3,8 @@ from pathlib import Path
 import csv
 
 
-RAW_VCF_MANIFEST = 'gdc_manifests/gbm_raw_vcfs.2018-11-21.txt'
-ANNOTATED_VCF_MANIFEST = 'gdc_manifests/gbm_annotated_vcfs.2018-11-26.txt'
+RAW_VCF_MANIFEST = 'gdc_manifests/gbm_raw_vcfs.txt'
+ANNOTATED_VCF_MANIFEST = 'gdc_manifests/gbm_annotated_vcfs.txt'
 
 SAMPLES = set()
 with open(ANNOTATED_VCF_MANIFEST) as f:
@@ -76,5 +76,5 @@ rule load_gdc_mutation_to_db:
     input:
         raw_vcfs=rules.link_gdc_raw_vcfs.output,
         annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz', sample=SAMPLES, caller=CALLERS)
-    output: db='processed_data/gdc_mut_calls.sqlite'
+    output: db='processed_data/gbm_mut_calls.sqlite'
     script: 'scripts/make_db.py'
