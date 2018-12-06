@@ -46,9 +46,17 @@ str_interp('GBM samples shared by both genomic and proteomic: ${length(shared_sa
 ```
 
 ```{r}
-gbm_seq_data <- read_tsv('../matt_catelog/CPTAC3.SR.dat') %>%
-    rename(data_name = `# sample_name`) %>%
+full_seq_data <- read_tsv('../matt_catelog/CPTAC3.SR.dat') %>%
+    rename(data_name = `# sample_name`) 
+
+gbm_seq_data <- full_seq_data%>%
     filter(case %in% genomic_samples) 
+```
+
+## Discovery from the full CPTAC3 cases
+
+```{r}
+full_seq_data %>% filter(disease == 'GBM') %>% distinct(case)
 ```
 
 
