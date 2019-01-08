@@ -1,3 +1,4 @@
+201811_proteomic_qc/scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl linguist-vendored=true
 *.Rmd     linguist-detectable=true
 *.nb.html linguist-generated=true
 *.nb.html linguist-detectable=false
