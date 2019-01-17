@@ -11,7 +11,6 @@ library(tidyverse)
 
 ## Proteomic samples
 Read the list of GBM samples used by Tao
-
 ```{r}
 proteomic_samples <- read_lines('../proteomic_samples.list')
 proteomic_samples_cptac_only <- str_subset(proteomic_samples, '^C3[NL]-')
@@ -157,12 +156,36 @@ local_data_location_tbl <- map_dfr(
 ) 
 ```
 
+Find WXS BAMs on MGI.
 ```{r}
-local_data_location_tbl %>% filter(system == 'MGI' & experimental_strategy == 'WXS') %>%
+mgi_wxs_bams <- local_data_location_tbl %>% filter(system == 'MGI' & experimental_strategy == 'WXS') %>%
     select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+nrow(mgi_wxs_bams)
 ```
 
+```{r}
+mgi_wxs_bams %>% head()
+```
+
+Find RNA-seq FASTQs.
 ```{r}
 local_data_location_tbl %>% filter(system == 'katmai' & experimental_strategy == 'RNA-Seq') %>%
     select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
 ```
+
+Find WGS BAMs.
+```{r}
+katmai_wgs_bams <- local_data_location_tbl %>% 
+    filter(system == 'katmai' & experimental_strategy == 'WGS') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+nrow(katmai_wgs_bams)
+```
+
+There is one sample doesn't have tumor WGS BAM.
+```{r}
+wgs_uuid_tbl %>%
+    filter(!wgs_tumor_BAM %in% katmai_wgs_bams$UUID | !wgs_blood_normal_BAM %in% katmai_wgs_bams$UUID)
+```
+
