@@ -44,6 +44,7 @@ str_interp('Total genomic samples available on GDC: ${length(genomic_samples)}')
 str_interp('GBM samples shared by both genomic and proteomic: ${length(shared_samples)}')
 ```
 
+## Discovery from the full CPTAC3 sequencing data
 ```{r}
 full_seq_data <- read_tsv('../matt_catelog/CPTAC3.SR.dat') %>%
     rename(data_name = `# sample_name`) 
@@ -51,13 +52,6 @@ full_seq_data <- read_tsv('../matt_catelog/CPTAC3.SR.dat') %>%
 gbm_seq_data <- full_seq_data%>%
     filter(case %in% genomic_samples) 
 ```
-
-## Discovery from the full CPTAC3 cases
-
-```{r}
-full_seq_data %>% filter(disease == 'GBM') %>% distinct(case)
-```
-
 
 ### hg38 WXS
 ```{r}
@@ -71,8 +65,7 @@ wxs_uuid_tbl %>% head()
 ```
 
 ### hg38 WGS
-Note that all the GBM samples have their hg19 WGS ready.
-
+Note that all the GBM samples also have their hg19 WGS BAMs
 ```{r}
 wgs_uuid_tbl <- gbm_seq_data %>% 
     filter(experimental_strategy == 'WGS' & reference == 'hg38') %>% 
@@ -99,7 +92,6 @@ rna_uuid_tbl %>% head()
 
 ### miRNA-seq
 miRNA-seq only has one strand.
-
 ```{r}
 mirna_uuid_tbl <- gbm_seq_data %>% 
     filter(experimental_strategy == 'miRNA-Seq') %>%
@@ -119,7 +111,7 @@ gbm_omics_uuid_tbl <- reduce(
 ) %>%
     arrange(case)
 
-gbm_omics_uuid_tbl
+gbm_omics_uuid_tbl %>% head()
 ```
 
 ```{r}
@@ -168,10 +160,22 @@ nrow(mgi_wxs_bams)
 mgi_wxs_bams %>% head()
 ```
 
+Find WXS BAMs on katmai.
+```{r}
+katmai_wxs_bams <- local_data_location_tbl %>% filter(system == 'katmai' & experimental_strategy == 'WXS') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+nrow(katmai_wxs_bams)
+```
+
+
 Find RNA-seq FASTQs.
 ```{r}
-local_data_location_tbl %>% filter(system == 'katmai' & experimental_strategy == 'RNA-Seq') %>%
+katmai_rna_fqs <- local_data_location_tbl %>% 
+    filter(system == 'katmai' & experimental_strategy == 'RNA-Seq') %>%
     select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+katmai_rna_fqs %>% nrow()
 ```
 
 Find WGS BAMs.
