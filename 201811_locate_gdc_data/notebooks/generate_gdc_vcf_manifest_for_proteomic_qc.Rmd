@@ -1,5 +1,5 @@
 ---
-title: "Generate manifest for proteomic QC"
+title: "Generate manifest of GDC raw and filtered-and-annotated VCFs for proteomic QC"
 output: html_notebook
 ---
 
