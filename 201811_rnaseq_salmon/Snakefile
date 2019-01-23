@@ -133,7 +133,7 @@ rule download_tx_ref:
         curl {params.ensembl_cdna_url} -o {output.cdna}
         '''
 
-
+# Build Salmon index of TSL1 or TSLNA {{{
 rule create_gffutils_db:
     """Create a GTF database for fast query."""
     input: rules.download_tx_ref.output['gtf']
@@ -165,7 +165,7 @@ rule build_salmon_index:
     threads: 2
     shell:
         'salmon index --threads {threads} -t {input} -i {params.salmon_ix}'
-
+# }}}
 
 rule quant_one_sample:
     """Gene quantification on one sample using Salmon."""
@@ -189,7 +189,10 @@ rule quant_all_samples:
     input: expand('processed_data/quants/{sample}/quant.sf', sample=SAMPLES)
 
 
-# Experiment with different transcript reference set {{{
+# Use the same set of samples for experiments
+SAMPLES_FOR_EXP = ['C3L-00016', 'C3L-01839']
+
+# Experiment: Salmon using full transcript reference set {{{
 rule quant_one_sample_full_tx_ref:
     """Gene quantification on one sample using Salmon and using full Ensembl transcript set."""
     input:
@@ -206,7 +209,102 @@ rule quant_one_sample_full_tx_ref:
         '-p {threads} -o {params.out_folder} '
 
 rule experiment_full_tx:
-    input: expand('processed_data/experiments/full_tx_ref_quants/{sample}/quant.sf', sample=['C3L-00016', 'C3L-01839'])
+    input: expand('processed_data/experiments/full_tx_ref_quants/{sample}/quant.sf', sample=SAMPLES_FOR_EXP)
+# }}}
+
+
+# Experiment: STAR two pass alignment {{{
+GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+STAR_INDEX_FOLDER = '/diskmnt/Datasets/Reference/GDC/star_genome_d1_vd1_gtfv22'
+STAR_GTF = '/diskmnt/Datasets/Reference/GDC/gencode.v22.annotation.gtf'
+
+
+rule star_align_pass1:
+    """STAR genome alignemnt pass 1 of one sample."""
+    input:
+        r1_fq='external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
+        r2_fq='external_data/GDC_RNA_fq/{sample}.R2.fastq.gz'
+    output:
+        sj='processed_data/experiments/star/{sample}/pass1/SJ.out.tab'
+    params:
+        star_ix=STAR_INDEX_FOLDER,
+        star_gtf=STAR_GTF,
+        out_folder='processed_data/experiments/star/{sample}/pass1/'
+    log: 'logs/star_pass1/{sample}.log'
+    threads: 4
+    shell:
+        'STAR '
+        '--genomeDir {params.star_ix} '
+        '--readFilesIn {input.r1_fq} {input.r2_fq} '
+        '--readFilesCommand zcat '
+        '--runThreadN {threads} '
+        '--outFileNamePrefix {params.out_folder} '
+        '--outFilterMultimapScoreRange 1 '
+        '--outFilterMultimapNmax 20 '
+        '--outFilterMismatchNmax 10 '
+        '--alignIntronMax 500000 '
+        '--alignMatesGapMax 1000000 '
+        '--sjdbScore 2 '
+        '--alignSJDBoverhangMin 1 '
+        '--genomeLoad NoSharedMemory '
+        '--outFilterMatchNminOverLread 0.33 '
+        '--outFilterScoreMinOverLread 0.33 '
+        '--sjdbOverhang 100 '
+        '--outSAMstrandField intronMotif '
+        '--outSAMtype None '
+        '--outSAMmode None '
+        '> {log}'
+
+
+rule star_align_pass2:
+    """STAR genome alignemnt pass 2 of one sample."""
+    input:
+        r1_fq='external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
+        r2_fq='external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+        all_pass1_sj_tabs=expand('processed_data/experiments/star/{sample}/pass1/SJ.out.tab', sample=SAMPLES_FOR_EXP)
+    output:
+        bam='processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam'
+    params:
+        star_ix=STAR_INDEX_FOLDER,
+        star_gtf=STAR_GTF,
+        out_folder='processed_data/experiments/star/{sample}/pass2/'
+    log: 'logs/star_pass2/{sample}.log'
+    threads: 4
+    shell:
+        # Run the same command as pass1, but passing the split junction tabs of all samples
+        'STAR '
+        '--genomeDir {params.star_ix} '
+        '--readFilesIn {input.r1_fq} {input.r2_fq} '
+        '--readFilesCommand zcat '
+        '--runThreadN {threads} '
+        '--outFileNamePrefix {params.out_folder} '
+        '--outFilterMultimapScoreRange 1 '
+        '--outFilterMultimapNmax 20 '
+        '--outFilterMismatchNmax 10 '
+        '--alignIntronMax 500000 '
+        '--alignMatesGapMax 1000000 '
+        '--sjdbScore 2 '
+        '--alignSJDBoverhangMin 1 '
+        '--genomeLoad NoSharedMemory '
+        '--outFilterMatchNminOverLread 0.33 '
+        '--outFilterScoreMinOverLread 0.33 '
+        '--sjdbOverhang 100 '
+        # Pass SJ tabs of all samples (main difference to PASS 1)
+        '--sjdbFileChrStartEnd {input.all_pass1_sj_tabs} '
+        '--limitBAMsortRAM 0 '
+        '--outSAMstrandField intronMotif '
+        '--outSAMattributes NH HI NM MD AS XS '
+        '--outSAMunmapped Within '
+        '--outSAMtype BAM SortedByCoordinate '
+        # Add SAM version number (likely no effect on anything)
+        # Ref: https://www.biostars.org/p/121135/#121138
+        '--outSAMheaderHD @HD VN:1.4 '
+        '> {log}'
+
+rule experiment_star:
+    """Experiment using STAR alignment pipeline (adopted from GDC)"""
+    input: expand('processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam', sample=SAMPLES_FOR_EXP)
+
 # }}}
 
 # vim:set foldmethod=marker:
