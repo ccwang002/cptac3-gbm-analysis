@@ -303,12 +303,14 @@ rule star_align_pass2:
 
 
 rule htseq_readcount:
+    """Readcount by HTseq"""
     input:
         bam='processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam'
     output:
         readcount_tsv='processed_data/experiments/star/{sample}/readcount.tsv'
     params:
         gtf=STAR_GTF
+    log: 'logs/htseq/{sample}.log'
     shell:
         'samtools view -F 4 {input.bam} '
         '| htseq-count '
@@ -316,7 +318,7 @@ rule htseq_readcount:
         '  -i gene_id '
         '  -r pos '
         '  -s no  '
-        '  - {params.gtf} > {output.readcount_tsv}'
+        '  - {params.gtf} > {output.readcount_tsv} 2> {log}'
 
 
 rule experiment_star:
