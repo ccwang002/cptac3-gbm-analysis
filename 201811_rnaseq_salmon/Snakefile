@@ -301,9 +301,27 @@ rule star_align_pass2:
         '--outSAMheaderHD @HD VN:1.4 '
         '> {log}'
 
+
+rule htseq_readcount:
+    input:
+        bam='processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam'
+    output:
+        readcount_tsv='processed_data/experiments/star/{sample}/readcount.tsv'
+    params:
+        gtf=STAR_GTF
+    shell:
+        'samtools view -F 4 {input.bam} '
+        '| htseq-count '
+        '  -m intersection-nonempty '
+        '  -i gene_id '
+        '  -r pos '
+        '  -s no  '
+        '  - {params.gtf} > {output.readcount_tsv}'
+
+
 rule experiment_star:
     """Experiment using STAR alignment pipeline (adopted from GDC)"""
-    input: expand('processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam', sample=SAMPLES_FOR_EXP)
+    input: expand('processed_data/experiments/star/{sample}/readcount.tsv', sample=SAMPLES_FOR_EXP)
 
 # }}}
 

@@ -3,4 +3,7 @@
 
 ### Installation
 
-    conda install "python>=3.6" snakemake-minimal salmon gffutils star ipython
+    conda install "python>=3.6" \
+        snakemake-minimal \
+        salmon gffutils star htseq \
+        ipython
