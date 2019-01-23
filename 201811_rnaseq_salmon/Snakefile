@@ -215,7 +215,7 @@ rule experiment_full_tx:
 
 # Experiment: STAR two pass alignment {{{
 GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
-STAR_INDEX_FOLDER = '/diskmnt/Datasets/Reference/GDC/star_genome_d1_vd1_gtfv22'
+STAR_INDEX_FOLDER = '/diskmnt/Datasets/Reference/GDC/star_genome_d1_vd1_gtfv22.rebuild'
 STAR_GTF = '/diskmnt/Datasets/Reference/GDC/gencode.v22.annotation.gtf'
 
 
