@@ -302,6 +302,31 @@ rule star_align_pass2:
         '> {log}'
 
 
+rule subread_featurecounts:
+    """Readcount by featureCounts (Subread)"""
+    input:
+        bam=expand('processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam', sample=SAMPLES_FOR_EXP)
+    output:
+        count_tsv='processed_data/experiments/star/all_samples_featurecounts.tsv'
+    params:
+        gtf=STAR_GTF
+    log: 'logs/all_samples_featurecounts.log'
+    threads: 4
+    shell:
+        'featureCounts '
+        '-g gene_id '  # feature id (-i in htseq)
+        '-t exon ' # feature type (-t in htseq)
+        '-T {threads} '
+        '-Q 10 ' # htseq set this minimal mapping quality by default
+        '-a {params.gtf} '
+        '-o {output.count_tsv} {input.bam} 2> {log}'
+
+
+rule experiment_star:
+    """Experiment using STAR alignment pipeline (adopted from GDC)"""
+    input: rules.subread_featurecounts.output
+
+
 rule htseq_readcount:
     """Readcount by HTseq"""
     input:
@@ -319,12 +344,6 @@ rule htseq_readcount:
         '  -r pos '
         '  -s no  '
         '  - {params.gtf} > {output.readcount_tsv} 2> {log}'
-
-
-rule experiment_star:
-    """Experiment using STAR alignment pipeline (adopted from GDC)"""
-    input: expand('processed_data/experiments/star/{sample}/readcount.tsv', sample=SAMPLES_FOR_EXP)
-
 # }}}
 
 # vim:set foldmethod=marker:
