@@ -1,0 +1,46 @@
+---
+title: "Investigate the RNA-seq BAM mapping"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+idxstats_tbl <- read_tsv(
+    '../processed_data/experiments/star/C3L-00016/pass2/bam_idxstats.out',
+    col_names = c('chrom', 'chrom_len', 'num_mapped_reads', 'num_unmapped_reads')
+)
+idxstats_tbl %>% head()
+```
+
+First show that most of the reads mapped to genome:
+```{r}
+idxstats_tbl %>%
+    summarize(
+        total_mapped = sum(num_mapped_reads), 
+        total_unmapped = sum(num_unmapped_reads),
+        percentage = total_mapped / (total_mapped + total_unmapped)
+    )
+```
+
+And show the most of the reads mapped to the canonical chromosomes:
+```{r}
+idxstats_tbl %>%
+    mutate(
+        chrom_type = case_when(
+            chrom %in% str_c('chr', c(1:22, 'M', 'X', 'Y')) ~ 'canonical',
+            endsWith(chrom, '_random') ~ 'canonical_random',
+            startsWith(chrom, 'chrUn') ~ 'chrUn_decoy',
+            chrom == '*' ~ 'unmapped',
+            TRUE ~ 'virus'
+        )
+    ) %>%
+    group_by(chrom_type) %>%
+    summarize(
+        total_mapped = sum(num_mapped_reads), 
+        total_unmapped = sum(num_unmapped_reads)
+    )
+```
+
