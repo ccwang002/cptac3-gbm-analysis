@@ -325,25 +325,6 @@ rule subread_featurecounts:
 rule experiment_star:
     """Experiment using STAR alignment pipeline (adopted from GDC)"""
     input: rules.subread_featurecounts.output
-
-
-rule htseq_readcount:
-    """Readcount by HTseq"""
-    input:
-        bam='processed_data/experiments/star/{sample}/pass2/Aligned.sortedByCoord.out.bam'
-    output:
-        readcount_tsv='processed_data/experiments/star/{sample}/readcount.tsv'
-    params:
-        gtf=STAR_GTF
-    log: 'logs/htseq/{sample}.log'
-    shell:
-        'samtools view -F 4 {input.bam} '
-        '| htseq-count '
-        '  -m intersection-nonempty '
-        '  -i gene_id '
-        '  -r pos '
-        '  -s no  '
-        '  - {params.gtf} > {output.readcount_tsv} 2> {log}'
 # }}}
 
 # vim:set foldmethod=marker:
