@@ -1,0 +1,185 @@
+---
+title: "Compare RNA pipelines"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+# library(ensembldb)
+# library(tximport)
+```
+
+```{r}
+edb <- ensembldb::EnsDb('../external_data/EnsDb.Hsapiens.v90.sqlite')
+edb
+```
+
+Build a table to convert transcript IDs to gene symbols
+```{r}
+tx2gene <- ensembldb::transcripts(edb, columns=c('gene_id', 'gene_name')) %>%
+    as_tibble() %>%
+    select(tx_id, gene_name)
+tx2gene %>% head()
+```
+
+```{r}
+exp_samples <- c('C3L-00016', 'C3L-01839')
+```
+
+
+```{r}
+quant_files.tsl1 <- file.path('../processed_data/quants', exp_samples ,'quant.sf')
+names(quant_files.tsl1) <- exp_samples
+all(file.exists(quant_files.tsl1))
+```
+
+```{r}
+quant_files.all_tsl <- file.path('../processed_data/experiments/full_tx_ref_quants', exp_samples ,'quant.sf')
+names(quant_files.all_tsl) <- exp_samples
+all(file.exists(quant_files.all_tsl))
+```
+
+```{r}
+txi.tsl1 <- tximport::tximport(
+    quant_files.tsl1, 
+    type = "salmon", 
+    tx2gene = tx2gene, 
+    ignoreTxVersion = TRUE
+)
+txi.all_tsl <- tximport::tximport(
+    quant_files.all_tsl, 
+    type = "salmon", 
+    tx2gene = tx2gene, 
+    ignoreTxVersion = TRUE
+)
+```
+
+```{r}
+genes_of_interest <- c("IDH1", "IDH2", "TP53")
+txi.tsl1$abundance[genes_of_interest, ]
+txi.all_tsl$abundance[genes_of_interest, ]
+```
+
+```{r}
+txi.tsl1$counts[genes_of_interest, ]
+txi.all_tsl$counts[genes_of_interest, ]
+```
+
+
+Load alignment based readcount
+```{r}
+readcount_tbl <- read_tsv(
+        '../processed_data/experiments/star/all_samples_featurecounts.tsv',
+        comment = '#'
+    ) %>%
+    mutate(Geneid = str_match(Geneid, '^([^.]+)\\.\\d+$')[, 2]) %>%
+    select(-Chr, -Start, -End, -Strand)
+
+colnames(readcount_tbl)[3:4] <- exp_samples
+colnames(readcount_tbl)
+```
+
+Convert readcount into TPM
+```{r}
+tpm <- function(counts, lengths) {
+  rate <- counts / lengths
+  rate / sum(rate) * 1e6
+}
+
+readcount_tpm_tbl <- readcount_tbl %>%
+    gather(sample, cnt, 3:ncol(.)) %>%
+    group_by(sample) %>%
+    mutate(tpm = tpm(cnt, Length)) %>%
+    dplyr::select(-cnt) %>%
+    spread(sample, tpm)
+```
+
+```{r}
+readcount_tpm_tbl <- readcount_tpm_tbl %>%
+    # Add gene symbol
+    mutate(
+        symbol = ensembldb::mapIds(
+            edb, 
+            Geneid, 
+            column = 'GENENAME', 
+            keytype = 'GENEID'
+        )
+    ) %>%
+    # Remove read counts without symbol
+    filter(!is.na(symbol)) %>%
+    # Summarize the TPM values of the same gene symbol
+    gather(sample, tpm, c(exp_samples)) %>%
+    group_by(sample, symbol) %>%
+    summarize(tpm = sum(tpm, na.rm = TRUE)) %>%
+    spread(sample, tpm)
+```
+
+```{r}
+readcount_tpm_tbl %>% head()
+```
+
+```{r}
+tpm.readcounts <- as.matrix(readcount_tpm_tbl[, exp_samples])
+colnames(tpm.readcounts) <- exp_samples
+rownames(tpm.readcounts) <- readcount_tpm_tbl$symbol
+
+tpm.readcounts[1:5, ]
+```
+
+
+```{r}
+tpm.tsl1 <- txi.tsl1$abundance
+tpm.all_tsl <- txi.all_tsl$abundance
+tpm.tsl1[genes_of_interest, ]
+tpm.all_tsl[genes_of_interest, ]
+tpm.readcounts[genes_of_interest, ]
+```
+
+Find share genes
+```{r}
+shared_genes <- intersect(
+    intersect(rownames(tpm.tsl1), rownames(tpm.all_tsl)), 
+    rownames(tpm.readcounts)
+)
+```
+
+
+```{r}
+sample <- exp_samples[2]
+merged_tpm <- do.call(
+    cbind,
+    list(tpm.tsl1[shared_genes, sample], 
+         tpm.all_tsl[shared_genes, sample], 
+         tpm.readcounts[shared_genes, sample])
+)
+colnames(merged_tpm) <- c('TSL1', 'All_TSL', 'Alignment')
+```
+
+```{r}
+# Rank based correlation
+cor(merged_tpm, method = 'spearman')
+```
+
+```{r}
+# Value based correlation
+cor(merged_tpm, method = 'pearson')
+```
+
+```{r, fig.width=6, fig.height=6}
+plot_tbl <- merged_tpm %>%
+    as_tibble(rownames = 'symbol')
+
+axis_limit <- c(0, 15000)
+
+ggplot(plot_tbl, aes(x=All_TSL, y=TSL1)) + 
+    geom_abline(intercept = 0, slope = 1, color = 'red') +
+    geom_point() + 
+    coord_fixed(xlim=axis_limit, ylim=axis_limit)
+
+
+ggplot(plot_tbl, aes(x=All_TSL, y=Alignment)) + 
+    geom_abline(intercept = 0, slope = 1, color = 'red') +
+    geom_point() + 
+    coord_fixed(xlim=axis_limit, ylim=axis_limit)
+```
+
