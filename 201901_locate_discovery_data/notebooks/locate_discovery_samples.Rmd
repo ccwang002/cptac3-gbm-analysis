@@ -1,0 +1,135 @@
+---
+title: "Locate GBM discovery cohort samples"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+## Discovery samples
+```{r}
+discovery_samples <- read_lines('../cptac3_gbm_discovery_samples.list')
+discovery_samples_cptac_only <- str_subset(discovery_samples, '^C3[NL]-')
+discovery_samples_gtex_only <- str_subset(discovery_samples, '^PT-')
+```
+
+We also load the 60 sample list we used before.
+```{r}
+prev_genomic_samples <- read_lines('../../201811_locate_gdc_data/genomic_samples.60_cases.list')
+```
+
+
+### The GDC data availability
+```{r}
+gdc_samples <- read_tsv(
+    '../../201811_locate_gdc_data/matt_catelog/CPTAC3.cases.dat',
+    col_names = c('case_id', 'cancer_type')
+) %>% 
+    filter(cancer_type == 'GBM') %>% 
+    pull(case_id) %>% 
+    sort()
+
+length(gdc_samples)
+```
+
+See how many samples are available on GDC
+```{r}
+# Total number of the discovery samples 
+length(discovery_samples)
+# Total number of the discovery samples (CPTAC only)
+length(discovery_samples_cptac_only)
+# Total number of samples on GDC
+length(intersect(discovery_samples_cptac_only, gdc_samples))
+
+# Samples that are not on GDC
+setdiff(discovery_samples_cptac_only, gdc_samples)
+```
+
+How many samples we already have their genomic data processed
+```{r}
+length(intersect(discovery_samples_cptac_only, prev_genomic_samples))
+```
+
+
+## Discovery from the full CPTAC3 sequencing data
+```{r}
+gbm_seq_data <- read_tsv('../../201811_locate_gdc_data/matt_catelog/CPTAC3.SR.dat') %>%
+    rename(data_name = `# sample_name`) %>%
+    filter(case %in% discovery_samples_cptac_only) 
+```
+
+
+### hg38 WXS
+```{r}
+wxs_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'WXS' & reference == 'hg38') %>% 
+    select(case, sample_type, UUID) %>%
+    spread(sample_type, UUID) %>%
+    rename(wxs_blood_normal_bam = blood_normal, wxs_tumor_bam = tumor)
+
+wxs_uuid_tbl %>% nrow()
+```
+
+
+### hg38 WGS
+```{r}
+wgs_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'WGS' & reference == 'hg38') %>% 
+    select(case, sample_type, UUID) %>%
+    spread(sample_type, UUID) %>%
+    rename(wgs_blood_normal_BAM = blood_normal, wgs_tumor_BAM = tumor)
+
+wgs_uuid_tbl %>% nrow()
+```
+
+
+### RNA-seq
+```{r}
+rna_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'RNA-Seq') %>%
+    mutate(strand = str_match(data_name, '\\.RNA-Seq\\.(R[12])\\.\\w$')[, 2]) %>% 
+    mutate(key = str_c('rna', sample_type, strand, 'fastq', sep = '_')) %>%
+    select(case, key, UUID) %>%
+    spread(key = key, value = UUID)
+
+rna_uuid_tbl %>% nrow()
+```
+
+
+### miRNA-seq
+miRNA-seq generates single-end FASTQ.
+```{r}
+mirna_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'miRNA-Seq') %>%
+    mutate(key = str_c('mirna', sample_type, 'fastq', sep = '_'))  %>%
+    select(case, key, UUID) %>%
+    spread(key = key, value = UUID)
+
+mirna_uuid_tbl %>% nrow()
+```
+
+
+### Merge all omic-seq data
+We make sure all the discovery samples are there.
+```{r}
+gbm_omics_uuid_tbl <- reduce(
+    list(
+        tibble(case = discovery_samples_cptac_only), 
+        wxs_uuid_tbl, 
+        wgs_uuid_tbl, 
+        rna_uuid_tbl, 
+        mirna_uuid_tbl
+    ),
+    function(x, y) {full_join(x, y, by = 'case')}
+) %>%
+    arrange(case)
+
+gbm_omics_uuid_tbl %>% head()
+```
+
+```{r}
+write_tsv(gbm_omics_uuid_tbl, '../tracked_results/CPTAC3_GBM_discovery_GDC_omics_UUIDs.tsv')
+```
+

@@ -19,18 +19,18 @@ experiment plexes. The main goal is to address the 5 tumors that are clustered
 with GTEx normals using single-shot mass spectrometry.
 
 
-### `201811_rnaseq_salmon` on katmai RNA quantification of high-confident
-protein coding trasncripts (Ensembl v90). Only transcripts of protein coding
-with TSL 1 or TSL NA (e.g. single exon trasncripts) were included. Since the
-mapping rate using this approach is low, we also explore some other RNA-seq
-pipelines:
+### `201811_rnaseq_salmon` on katmai
+RNA quantification of high-confident protein coding trasncripts (Ensembl v90).
+Only transcripts of protein coding with TSL 1 or TSL NA (e.g. single exon
+trasncripts) were included. Since the mapping rate using this approach is low,
+we also explore some other RNA-seq pipelines:
 
 - Salmon using all transcripts
 - Alignment-based pipeline: STAR + htseq
 
 
 ### `201811_wxs_bam_readcount` on katmai
-WXS BAM readcount on region of interests
+WXS BAM readcount on regions of interest.
 
 
 ### `201901_locate_discovery_data` on denali
