@@ -1,0 +1,80 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+## Discovery samples
+```{r}
+discovery_samples <- read_lines('../cptac3_gbm_discovery_samples.list')
+discovery_samples_cptac_only <- str_subset(discovery_samples, '^C3[NL]-')
+discovery_samples_gtex_only <- str_subset(discovery_samples, '^PT-')
+```
+
+
+## Original GDC manifests for VCFs
+
+### Annotated VCFs
+```{r}
+annoated_vcf_manifest <- read_tsv(
+    '../../201811_locate_gdc_data/gdc_manifests/CPTAC_annotated_VCFs_with_caseID_fullset.2018-11-21.txt'
+)
+```
+
+```{r}
+gbm_annotated_vcf_manifest <- annoated_vcf_manifest %>%
+    filter(
+        `case ID` %in% discovery_samples_cptac_only 
+        & endsWith(file_name, '.vcf.gz')
+    )
+
+nrow(gbm_annotated_vcf_manifest)
+```
+
+Make sure each sample has 4 VCFs.
+```{r}
+samples_with_vcf <- gbm_annotated_vcf_manifest %>% 
+    distinct(`case ID`) %>%
+    pull(`case ID`)
+
+nrow(gbm_annotated_vcf_manifest) == 4 * length(samples_with_vcf)
+```
+
+Write the filtered manifest.
+```{r}
+write_tsv(gbm_annotated_vcf_manifest, '../tracked_results/CPTAC3_GBM_GDC_annotated_vcfs_manifest.txt')
+```
+
+
+### Raw VCFs
+```{r}
+gbm_raw_vcf_manifest <- c(
+    '../../201811_locate_gdc_data/gdc_manifests/CPTAC-3_manifest_11052018.txt',   
+    '../../201811_locate_gdc_data/gdc_manifests/CPTAC-3.VCFs.batch2.GDC-Manifest_11_16.txt'
+) %>%
+    map_dfr(read_tsv) %>%
+    filter(
+        case_submitter_id %in% discovery_samples_cptac_only,
+        endsWith(file_name, 'raw_somatic_mutation.vcf.gz')
+    ) %>%
+    distinct()
+```
+
+Make sure each sample has 4 VCFs.
+```{r}
+samples_with_vcf <- gbm_raw_vcf_manifest %>% 
+    distinct(case_submitter_id) %>%
+    pull(case_submitter_id)
+
+nrow(gbm_raw_vcf_manifest) == 4 * length(samples_with_vcf)
+```
+
+
+Write the filtered manifest.
+```{r}
+write_tsv(gbm_annotated_vcf_manifest, '../tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt')
+```

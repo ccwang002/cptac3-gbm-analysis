@@ -1,0 +1,70 @@
+---
+title: "Check the availability of genomic data on the lab servers"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+## Discovery samples
+```{r}
+discovery_samples <- read_lines('../cptac3_gbm_discovery_samples.list')
+discovery_samples_cptac_only <- str_subset(discovery_samples, '^C3[NL]-')
+discovery_samples_gtex_only <- str_subset(discovery_samples, '^PT-')
+```
+
+Read the GDC UUIDs 
+```{r}
+gdc_omics_uuid_tbl <- read_tsv('../tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv')
+```
+
+```{r}
+local_data_location_tbl <- map_dfr(
+    c('../../201811_locate_gdc_data/matt_catelog/MGI.BamMap.dat', 
+      '../../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'),
+    function(x) {
+        read_tsv(
+            x, 
+            progress = FALSE,
+            col_types =  cols(
+                `# sample_name` = col_character(),
+                case = col_character(),
+                disease = col_character(),
+                experimental_strategy = col_character(),
+                sample_type = col_character(),
+                data_path = col_character(),
+                filesize = col_double(),
+                data_format = col_character(),
+                reference = col_character(),
+                UUID = col_character(),
+                system = col_character()
+            )
+        ) %>%
+            rename(data_name = `# sample_name`) %>%
+            filter(case %in% discovery_samples_cptac_only)
+    }
+) 
+```
+
+
+### hg38 WXS BAMs on MGI
+```{r}
+mgi_wxs_bams <- local_data_location_tbl %>% filter(system == 'MGI' & experimental_strategy == 'WXS') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+nrow(mgi_wxs_bams)
+```
+
+
+### RNA-seq FASTQs on katmai
+```{r}
+katmai_rna_fqs <- local_data_location_tbl %>% 
+    filter(system == 'katmai' & experimental_strategy == 'RNA-Seq') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+katmai_rna_fqs %>% nrow()
+```
+
+
