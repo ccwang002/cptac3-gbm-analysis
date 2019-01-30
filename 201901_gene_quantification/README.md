@@ -9,7 +9,7 @@ Two transcript annotations were used:
 ## Installation
 
     conda create -n gbm_rna \
-        "python>=3.6" \
+        "python>=3.7" \
         snakemake-minimal \
         salmon ipython
 
