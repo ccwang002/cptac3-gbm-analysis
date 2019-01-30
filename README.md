@@ -1,12 +1,15 @@
-## CPTAC3 GBM analysis
+# CPTAC3 GBM analysis
 The repository contains all the additional preprocessing scripts/pipelines, and
 analysis scripts to generate all the results and figures for CPTAC3
 Giloblastoma (GBM) cohort.
 
-For full information about this project, please refer to [the lab wiki for details][wiki].
+For full information about this project, please refer to [the lab wiki][wiki]
+for details.
 
 [wiki]: https://confluence.ris.wustl.edu/pages/viewpage.action?pageId=37130883
 
+
+## Proteomic QC
 
 ### `201811_locate_gdc_data` on denali
 **Use `201901_locate_discovery_data` instead**<br>
@@ -35,10 +38,15 @@ we also explore some other RNA-seq pipelines:
 WXS BAM readcount on regions of interest.
 
 
+
+## Discovery cohort
+
+
 ### `201901_locate_discovery_data` on denali
 Locate the up-to-date GDC and proteomic data relaese of the discovery cohort
 and the local file maps on denali, katmai, and MGI.
 
 
 ### `201901_gene_quantification` on katmai
-Gene-level expression using Salmon.
+Generate the transcript quantification (TPM) and gene-level expression of the
+discovery cohort using Salmon.
