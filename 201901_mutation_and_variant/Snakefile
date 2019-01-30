@@ -1,0 +1,19 @@
+import os
+from pathlib import Path
+import csv
+
+DISCOVERY_SAMPLE_LIST = '../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list'
+GDC_RAW_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt'
+GDC_ANNOTATED_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_annotated_vcfs_manifest.txt'
+GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse']
+
+# All CPTAC discovery samples
+SAMPLES = set()
+with open(DISCOVERY_SAMPLE_LIST) as f:
+    SAMPLES = set(sample for sample in f.read().splitlines() if not sample.startswith('PT-'))
+
+# Samples with GDC VCFs available
+GDC_SAMPLES = set()
+with open(ANNOTATED_VCF_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    GDC_SAMPLES = set(row['case ID'] for row in reader)
