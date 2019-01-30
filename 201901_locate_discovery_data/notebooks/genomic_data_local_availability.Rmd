@@ -68,3 +68,21 @@ katmai_rna_fqs %>% nrow()
 ```
 
 
+### Compare with the previous 60 samples
+```{r}
+samples_already_on_gdc <- read_tsv(
+    '../../201811_locate_gdc_data/matt_catelog/CPTAC3.cases.dat',
+    col_names = c('case_id', 'cancer_type')
+) %>% 
+    filter(cancer_type == 'GBM', case_id %in% discovery_samples_cptac_only) %>% 
+    pull(case_id) %>% 
+    sort()
+
+prev_60_genomic_samples <- read_lines('../../201811_locate_gdc_data/genomic_samples.60_cases.list')
+```
+
+List all the samples that we can download:
+```{r}
+setdiff(samples_already_on_gdc, prev_60_genomic_samples)
+```
+

@@ -42,7 +42,9 @@ length(discovery_samples)
 length(discovery_samples_cptac_only)
 # Total number of samples on GDC
 length(intersect(discovery_samples_cptac_only, gdc_samples))
+```
 
+```{r}
 # Samples that are not on GDC
 setdiff(discovery_samples_cptac_only, gdc_samples)
 ```
