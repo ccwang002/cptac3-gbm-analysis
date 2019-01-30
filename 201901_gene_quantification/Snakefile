@@ -8,6 +8,8 @@ OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM
 KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
 ENSEMBL_VER = 94
 GENCODE_VER = 29
+SALMON_INDEX_FOLDER_FMT = 'processed_data/tx_ref/{annotation_src}_salmon_index'
+ALL_ANNOTATIONS = ['gencode', 'ensembl']
 
 # Collect all the sample IDs.
 # Note that we skip for some samples if they don't have RNA-seq available
@@ -41,6 +43,10 @@ rule link_gdc_rna_fastq:
             reader = csv.DictReader(f, dialect='excel-tab')
             for row in reader:
                 sample = row['case']
+                # Currently not all the samples have RNA-seq data.
+                # So we SKIP the sample without one.
+                if sample not in SAMPLES:
+                    continue
                 r1_uuid = row['rna_tumor_R1_fastq']
                 r2_uuid = row['rna_tumor_R2_fastq']
 
@@ -52,18 +58,23 @@ rule link_gdc_rna_fastq:
                 r2_dst_pth.symlink_to(r2_src_pth)
 
 
+# Build Salmon indices (GENCODE and Ensembl) {{{
 rule download_ensembl_ref:
     """Download Ensembl transcript annotation files."""
     output:
         gtf=f'external_data/ensembl_ref/Homo_sapiens.GRCh38.{ENSEMBL_VER}.gtf.gz',
-        cdna='external_data/ensembl_ref/ensembl/Homo_sapiens.GRCh38.cdna.all.fa.gz'
+        cdna='external_data/ensembl_ref/Homo_sapiens.GRCh38.cdna_and_ncrna.fa.gz'
     params:
         gtf_url=f'ftp://ftp.ensembl.org/pub/release-{ENSEMBL_VER}/gtf/homo_sapiens/Homo_sapiens.GRCh38.{ENSEMBL_VER}.gtf.gz',
-        cdna_url=f'ftp://ftp.ensembl.org/pub/release-{ENSEMBL_VER}/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz'
+        cdna_url=f'ftp://ftp.ensembl.org/pub/release-{ENSEMBL_VER}/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz',
+        ncrna_url=f'ftp://ftp.ensembl.org/pub/release-{ENSEMBL_VER}/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz'
     shell:
+        # Note that Ensembl stores noncoding sequences in a separate FASTA file,
+        # so we concatenate the two gzip'd FASTA files together.
         '''
         curl {params.gtf_url} -o {output.gtf}
         curl {params.cdna_url} -o {output.cdna}
+        curl {params.ncrna_url} -o- >> {output.cdna}
         '''
 
 
@@ -103,7 +114,87 @@ rule extract_gencode_tx_list:
         r"""
         gunzip -c {input} \
         | awk '{{if ($3 == "transcript") print}}' \
-        | sed -r 's/.*transcript_id "([.A-Z0-9]+)";.*/\1/' \
+        | sed -r 's/.*transcript_id "([.A-Z0-9_]+)";.*/\1/' \
+        | grep --invert-match -e '_PAR_Y$' \
         > {output}
         """
 
+
+def find_annotation_cdna(wildcards):
+    if wildcards.annotation_src == 'ensembl':
+        return {
+            'tx_list': rules.extract_ensembl_tx_list.output[0],
+            'cdna_fa': rules.download_ensembl_ref.output['cdna'],
+        }
+    elif wildcards.annotation_src == 'gencode':
+        return {
+            'tx_list': rules.extract_gencode_tx_list.output[0],
+            'cdna_fa': rules.download_gencode_ref.output['cdna'],
+        }
+    else:
+        raise ValueError(f'Unknown annotation source: {wildcards.annotation_src}')
+
+
+rule subset_cdna_fasta:
+    """Subset the cDNA FASTA to only include transcripts of interest."""
+    output:
+        out_fa='processed_data/tx_ref/{annotation_src}_selected_cdna.fa.gz',
+        missing_tx_list='processed_data/tx_ref/{annotation_src}_missing_tx_ids.list'
+    input: unpack(find_annotation_cdna)
+    log: 'logs/tx_ref/{annotation_src}_subset_cdna.log'
+    script: 'scripts/subset_cdna_fa.py'
+
+
+rule build_salmon_index:
+    """Build Salmon index."""
+    output: 'processed_data/tx_ref/{annotation_src}_salmon_index/hash.bin'
+    input: rules.subset_cdna_fasta.output['out_fa']
+    params: salmon_ix_folder=SALMON_INDEX_FOLDER_FMT
+    threads: 4
+    log: 'logs/tx_ref/{annotation_src}_salmon_index.log'
+    shell:
+        'salmon index '
+        '--threads {threads} '
+        '-t {input} '
+        '-i {params.salmon_ix_folder} '
+        '-k 31 '  # kmer length
+        '2> {log}'
+
+
+rule build_all_salmon_indices:
+    """Build Salmon indices of GENCODE and Ensembl."""
+    input: expand(rules.build_salmon_index.output[0], annotation_src=ALL_ANNOTATIONS)
+# }}}
+
+
+rule salmon_quant_one_sample:
+    """Gene quantification of one sample using Salmon."""
+    output: 'processed_data/salmon_quants/{annotation_src}/{sample}/quant.sf'
+    input:
+        r1_fq='external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
+        r2_fq='external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+        salmon_ix=rules.build_salmon_index.output[0]
+    params:
+        salmon_ix_folder=SALMON_INDEX_FOLDER_FMT,
+        out_folder='processed_data/salmon_quants/{annotation_src}/{sample}'
+    threads: 4
+    log: 'logs/salmon_quants/{annotation_src}/{sample}.log'
+    shell:
+        'salmon quant '
+        '-i {params.salmon_ix_folder} '  # Path to the Salmon index folder
+        '-l A '  # Automatically detect library type
+        '--gcBias '  # Correct for GC bias
+        '--seqBias '  # Correct for radnom haxomer priming bias
+        '--validateMappings '  # Confirm the quantification by actual alignment
+        '--rangeFactorizationBins 4 '  # Fine tuning the transcript quantification
+        '-1 {input.r1_fq} -2 {input.r2_fq} '
+        '-p {threads} '
+        '-o {params.out_folder} '
+        '2> {log}'
+
+
+rule salmon_quant_all_samples:
+    """Generate the gene quantification by Salmon of all samples and all annotation sources."""
+    input: expand(rules.salmon_quant_one_sample.output[0], annotation_src=ALL_ANNOTATIONS, sample=SAMPLES)
+
+# vim:set foldmethod=marker:
