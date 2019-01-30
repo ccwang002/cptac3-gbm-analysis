@@ -1,6 +1,7 @@
 .snakemake/
 external_data/
 processed_data/
+logs/
 .Rproj.user
 .Rhistory
 .RData
