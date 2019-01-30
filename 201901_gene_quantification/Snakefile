@@ -1,0 +1,109 @@
+import csv
+from collections import namedtuple
+from pathlib import Path
+
+# Path the manifest of GDC UUIDs of all discovery samples
+OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+# Path to the mapping of UUID to file location on katmai
+KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
+ENSEMBL_VER = 94
+GENCODE_VER = 29
+
+# Collect all the sample IDs.
+# Note that we skip for some samples if they don't have RNA-seq available
+SAMPLES = set()
+with open(OMIC_UUID_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        # Skip for samples without RNA_seq data
+        if row['rna_tumor_R1_fastq'] == 'NA' or row['rna_tumor_R2_fastq'] == 'NA':
+            continue
+        SAMPLES.add(row['case'])
+
+
+rule link_gdc_rna_fastq:
+    """Link the RNA-seq fastqs locally."""
+    input: manifest=OMIC_UUID_MANIFEST,
+           local_map=KATMAI_MAP
+    output: expand('external_data/GDC_RNA_fq/{sample}.{read}.fastq.gz', sample=SAMPLES, read=['R1', 'R2'])
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                # Keep only RNA-seq UUIDs
+                if row['experimental_strategy'] == 'RNA-Seq':
+                    uuid_to_local_file_pth[row['UUID']] = Path(row['data_path'])
+
+        # Link the FASTQs
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case']
+                r1_uuid = row['rna_tumor_R1_fastq']
+                r2_uuid = row['rna_tumor_R2_fastq']
+
+                r1_src_pth = uuid_to_local_file_pth[r1_uuid]
+                r2_src_pth = uuid_to_local_file_pth[r2_uuid]
+                r1_dst_pth = Path(f'external_data/GDC_RNA_fq/{sample}.R1.fastq.gz')
+                r2_dst_pth = Path(f'external_data/GDC_RNA_fq/{sample}.R2.fastq.gz')
+                r1_dst_pth.symlink_to(r1_src_pth)
+                r2_dst_pth.symlink_to(r2_src_pth)
+
+
+rule download_ensembl_ref:
+    """Download Ensembl transcript annotation files."""
+    output:
+        gtf=f'external_data/ensembl_ref/Homo_sapiens.GRCh38.{ENSEMBL_VER}.gtf.gz',
+        cdna='external_data/ensembl_ref/ensembl/Homo_sapiens.GRCh38.cdna.all.fa.gz'
+    params:
+        gtf_url=f'ftp://ftp.ensembl.org/pub/release-{ENSEMBL_VER}/gtf/homo_sapiens/Homo_sapiens.GRCh38.{ENSEMBL_VER}.gtf.gz',
+        cdna_url=f'ftp://ftp.ensembl.org/pub/release-{ENSEMBL_VER}/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz'
+    shell:
+        '''
+        curl {params.gtf_url} -o {output.gtf}
+        curl {params.cdna_url} -o {output.cdna}
+        '''
+
+
+rule extract_ensembl_tx_list:
+    """Extract the list of Ensembl transcript IDs."""
+    output: 'processed_data/tx_ref/ensembl_tx_ids.list'
+    input: rules.download_ensembl_ref.output['gtf']
+    shell:
+        r"""
+        gunzip -c {input} \
+        | awk '{{if ($3 == "transcript") print}}' \
+        | sed -r 's/.*transcript_id "(\w+)"; transcript_version "(\w+)";.*/\1.\2/' \
+        > {output}
+        """
+
+
+rule download_gencode_ref:
+    """Download GENCODE basic transcript annotation files."""
+    output:
+        gtf=f'external_data/gencode_ref/gencode.v{GENCODE_VER}.basic.annotation.gtf.gz',
+        cdna=f'external_data/gencode_ref/gencode.v{GENCODE_VER}.transcripts.fa.gz'
+    params:
+        gtf_url=f'ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{GENCODE_VER}/gencode.v{GENCODE_VER}.basic.annotation.gtf.gz',
+        cdna_url=f'ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_{GENCODE_VER}/gencode.v{GENCODE_VER}.transcripts.fa.gz'
+    shell:
+        '''
+        curl {params.gtf_url} -o {output.gtf}
+        curl {params.cdna_url} -o {output.cdna}
+        '''
+
+
+rule extract_gencode_tx_list:
+    """Extract the list of GENCODE transcript IDs."""
+    output: 'processed_data/tx_ref/gencode_tx_ids.list'
+    input: rules.download_gencode_ref.output['gtf']
+    shell:
+        r"""
+        gunzip -c {input} \
+        | awk '{{if ($3 == "transcript") print}}' \
+        | sed -r 's/.*transcript_id "([.A-Z0-9]+)";.*/\1/' \
+        > {output}
+        """
+
