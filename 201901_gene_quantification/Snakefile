@@ -4,6 +4,8 @@ from pathlib import Path
 
 # Path the manifest of GDC UUIDs of all discovery samples
 OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+GTEX_MANIFEST = 'CPTAC_matched_GTEx_BAMs_manifest.txt'
+
 # Path to the mapping of UUID to file location on katmai
 KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
 ENSEMBL_VER = 94
@@ -11,23 +13,41 @@ GENCODE_VER = 29
 SALMON_INDEX_FOLDER_FMT = 'processed_data/tx_ref/{annotation_src}_salmon_index'
 ALL_ANNOTATIONS = ['gencode', 'ensembl']
 
-# Collect all the sample IDs.
+# Collect all the sample IDs
+ALL_SAMPLES = set()
+CPTAC_SAMPLES = set()
+GTEX_SAMPLES = set()
+
+# Collect all CPTAC samples
 # Note that we skip for some samples if they don't have RNA-seq available
-SAMPLES = set()
 with open(OMIC_UUID_MANIFEST) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
     for row in reader:
         # Skip for samples without RNA_seq data
         if row['rna_tumor_R1_fastq'] == 'NA' or row['rna_tumor_R2_fastq'] == 'NA':
             continue
-        SAMPLES.add(row['case'])
+        CPTAC_SAMPLES.add(row['case'])
+
+# Collect all GTEx samples:
+with open(GTEX_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        GTEX_SAMPLES.add(row['sample'])
+
+# Merge the sample IDs
+ALL_SAMPLES = CPTAC_SAMPLES | GTEX_SAMPLES
+
+# Get GTEx RNA-seq FASTQs {{{
+# We copy the BAM
+
+# }}}
 
 
 rule link_gdc_rna_fastq:
     """Link the RNA-seq fastqs locally."""
     input: manifest=OMIC_UUID_MANIFEST,
            local_map=KATMAI_MAP
-    output: expand('external_data/GDC_RNA_fq/{sample}.{read}.fastq.gz', sample=SAMPLES, read=['R1', 'R2'])
+    output: expand('external_data/GDC_RNA_fq/{sample}.{read}.fastq.gz', sample=CPTAC_SAMPLES, read=['R1', 'R2'])
     run:
         # Create a UUID to local file path map
         uuid_to_local_file_pth = {}
@@ -45,7 +65,7 @@ rule link_gdc_rna_fastq:
                 sample = row['case']
                 # Currently not all the samples have RNA-seq data.
                 # So we SKIP the sample without one.
-                if sample not in SAMPLES:
+                if sample not in ALL_SAMPLES:
                     continue
                 r1_uuid = row['rna_tumor_R1_fastq']
                 r2_uuid = row['rna_tumor_R2_fastq']
@@ -195,6 +215,6 @@ rule salmon_quant_one_sample:
 
 rule salmon_quant_all_samples:
     """Generate the gene quantification by Salmon of all samples and all annotation sources."""
-    input: expand(rules.salmon_quant_one_sample.output[0], annotation_src=ALL_ANNOTATIONS, sample=SAMPLES)
+    input: expand(rules.salmon_quant_one_sample.output[0], annotation_src=ALL_ANNOTATIONS, sample=CPTAC_SAMPLES)
 
 # vim:set foldmethod=marker:
