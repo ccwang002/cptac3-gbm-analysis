@@ -38,7 +38,31 @@ with open(GTEX_MANIFEST) as f:
 ALL_SAMPLES = CPTAC_SAMPLES | GTEX_SAMPLES
 
 # Get GTEx RNA-seq FASTQs {{{
-# We copy the BAM
+# We copy the BAM from MGI
+rule copy_gtex_rnaseq_bams:
+    """Copy GTEx original BAMs from MGI."""
+    output:
+        bams=expand('external_data/GTEx_RNA_bam/{sample}.bam', sample=GTEX_SAMPLES),
+        bais=expand('external_data/GTEx_RNA_bam/{sample}.bam.bai', sample=GTEX_SAMPLES)
+    params:
+        mgi_folder='/gscmnt/gc2802/halllab/cchiang/projects/gtex/rna-seq/4101/bam',
+        mgi_host='vw5.gsc.wustl.edu'
+    run:
+        with open(GTEX_MANIFEST) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['sample']
+                srr_id = row['id']
+            shell(
+                "rsync -a --info=progress2 --partial --bwlimit=25000 "
+                "{params.mgi_host}:{params.mgi_folder}/{srr_id}.bam "
+                "external_data/GTEx_RNA_bam/{sample}.bam"
+            )
+            shell(
+                "rsync -a --info=progress2 "
+                "{params.mgi_host}:{params.mgi_folder}/{srr_id}.bam.bai "
+                "external_data/GTEx_RNA_bam/{sample}.bam.bai"
+            )
 
 # }}}
 
