@@ -53,16 +53,16 @@ rule copy_gtex_rnaseq_bams:
             for row in reader:
                 sample = row['sample']
                 srr_id = row['id']
-            shell(
-                "rsync -a --info=progress2 --partial --bwlimit=25000 "
-                "{params.mgi_host}:{params.mgi_folder}/{srr_id}.bam "
-                "external_data/GTEx_RNA_bam/{sample}.bam"
-            )
-            shell(
-                "rsync -a --info=progress2 "
-                "{params.mgi_host}:{params.mgi_folder}/{srr_id}.bam.bai "
-                "external_data/GTEx_RNA_bam/{sample}.bam.bai"
-            )
+                shell(
+                    "rsync -a --info=progress2 --partial --bwlimit=25000 "
+                    "{params.mgi_host}:{params.mgi_folder}/{srr_id}.bam "
+                    "external_data/GTEx_RNA_bam/{sample}.bam"
+                )
+                shell(
+                    "rsync -a --info=progress2 "
+                    "{params.mgi_host}:{params.mgi_folder}/{srr_id}.bam.bai "
+                    "external_data/GTEx_RNA_bam/{sample}.bam.bai"
+                )
 
 # }}}
 
