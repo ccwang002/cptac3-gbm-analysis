@@ -265,12 +265,28 @@ rule build_all_salmon_indices:
 # }}}
 
 
+def find_rna_fastq(wildcards):
+    """Find the corresponding FASTQs of a sample."""
+    sample = wildcards.sample
+    if sample in CPTAC_SAMPLES:
+        return {
+            'r1_fq': f'external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
+            'r2_fq': f'external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+        }
+    elif sample in GTEX_SAMPLES:
+        return {
+            'r1_fq': f'external_data/GTEx_RNA_fq/{sample}.R1.fastq.gz',
+            'r2_fq': f'external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+        }
+    else:
+        raise ValueError(f'Sample {sample} is not part of CPTAC nor GTEx.')
+
+
 rule salmon_quant_one_sample:
     """Gene quantification of one sample using Salmon."""
     output: 'processed_data/salmon_quants/{annotation_src}/{sample}/quant.sf'
     input:
-        r1_fq='external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
-        r2_fq='external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+        unpack(find_rna_fastq),
         salmon_ix=rules.build_salmon_index.output[0]
     params:
         salmon_ix_folder=SALMON_INDEX_FOLDER_FMT,
