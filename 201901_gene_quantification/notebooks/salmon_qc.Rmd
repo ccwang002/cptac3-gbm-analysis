@@ -1,0 +1,152 @@
+---
+title: "QC for Salmon output"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+gtex_samples <- read_tsv('../CPTAC_matched_GTEx_BAMs_manifest.txt') %>%
+    pull(sample) %>%
+    sort()
+
+cptac_samples <- read_tsv('../../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv') %>%
+    filter(!is.na(rna_tumor_R1_fastq)) %>%
+    pull(case) %>%
+    sort()
+```
+
+Parse the salmon log to get the read statistics
+```{r}
+parse_salmon_log <- function(sample, annotation_src) {
+    pth <- str_interp('../processed_data/salmon_quants/${annotation_src}/${sample}/logs/salmon_quant.log')
+    logs <- read_lines(pth)
+    
+    match <- logs %>%
+        purrr::keep(~ str_detect(.x, 'Counted ([\\d,]+) total reads')) %>%
+        str_match('Counted ([\\d,]+) total reads')
+    mapped_reads <- as.integer(gsub(',', '', match[1, 2], fixed = TRUE))
+    
+    
+    match <- logs %>%
+        purrr::keep(~ str_detect(.x, 'Observed (\\d+) total fragments')) %>%
+        str_match('Observed (\\d+) total fragments')
+    total_reads <- as.integer(match[1, 2], fixed = TRUE)
+    
+    tibble(sample = sample, mapped_reads = mapped_reads, total_reads = total_reads) %>%
+        mutate(other_reads = total_reads - mapped_reads)
+}
+
+salmon_gencode_stat_tbl <- union(cptac_samples, gtex_samples) %>%
+    purrr::map_dfr(~ parse_salmon_log(.x, annotation_src = 'gencode')) %>%
+    # Shorten the sample ID
+    mutate(
+        sample = case_when(
+            startsWith(sample, 'GTEX-R55F') ~ sample,
+            sample %in% gtex_samples ~ str_sub(sample, end = -10),
+            TRUE ~ sample
+        ),
+        sample_source = case_when(
+            sample %in% cptac_samples ~ 'CPTAC',
+            TRUE ~ 'GTEx'
+        )
+    )
+
+salmon_ensembl_stat_tbl <- union(cptac_samples, gtex_samples) %>%
+    purrr::map_dfr(~ parse_salmon_log(.x, annotation_src = 'ensembl')) %>%
+    # Shorten the sample ID
+    mutate(
+        sample = case_when(
+            startsWith(sample, 'GTEX-R55F') ~ sample,
+            sample %in% gtex_samples ~ str_sub(sample, end = -10),
+            TRUE ~ sample
+        ),
+        sample_source = case_when(
+            sample %in% cptac_samples ~ 'CPTAC',
+            TRUE ~ 'GTEx'
+        )
+    )
+```
+
+```{r, fig.width=10, fig.height=6}
+plot_tbl <- salmon_gencode_stat_tbl %>%
+    select(-total_reads) %>%
+    gather(kind, num_reads, -sample, -sample_source) %>%
+    mutate(
+        sample = factor(
+            sample, 
+            levels = salmon_gencode_stat_tbl %>% arrange(-mapped_reads) %>% pull(sample)
+        ),
+        kind = factor(kind, levels = rev(c('mapped_reads', 'other_reads')))
+    )
+
+ggplot(plot_tbl, aes(x = sample, y = num_reads, fill = kind)) + 
+    geom_col() + 
+    scale_y_continuous(
+        labels = scales::unit_format(unit = "M", scale = 1e-6),
+        sec.axis = dup_axis(name = NULL)
+    ) +
+    scale_fill_manual(
+        values = c("other_reads" = "grey70", "mapped_reads" = "#1D5BA2"),
+        labels = c("other_reads" = "Other reads", "mapped_reads" = "Mapped to transcripts")
+    ) + 
+    facet_grid(~ sample_source, scales = 'free_x', space = 'free_x') + 
+    labs(
+        x = NULL, y = "Number of RNA-seq reads",
+        title = 'RNA-seq reads of CPTAC tumor and GTEx normal samples'
+    ) + 
+    guides(fill = guide_legend(title = NULL, reverse = TRUE)) + 
+    theme_bw() + 
+    theme(
+        legend.position = c(0.8, 1),
+        legend.justification = c(1, 1),
+        legend.direction = 'horizontal',
+        legend.background = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)    
+    )
+
+ggsave('../figures/salmon_genecode_stats.pdf', width = 10, height = 6)
+```
+
+
+Using Ensembl transcripts to calculate the Salmon read mapping statistics:
+```{r, fig.width=10, fig.height=6}
+plot_tbl <- salmon_ensembl_stat_tbl %>%
+    select(-total_reads) %>%
+    gather(kind, num_reads, -sample, -sample_source) %>%
+    mutate(
+        sample = factor(
+            sample, 
+            levels = salmon_ensembl_stat_tbl %>% arrange(-mapped_reads) %>% pull(sample)
+        ),
+        kind = factor(kind, levels = rev(c('mapped_reads', 'other_reads')))
+    )
+
+ggplot(plot_tbl, aes(x = sample, y = num_reads, fill = kind)) + 
+    geom_col() + 
+    scale_y_continuous(
+        labels = scales::unit_format(unit = "M", scale = 1e-6),
+        sec.axis = dup_axis(name = NULL)
+    ) +
+    scale_fill_manual(
+        values = c("other_reads" = "grey70", "mapped_reads" = "#1D5BA2"),
+        labels = c("other_reads" = "Other reads", "mapped_reads" = "Mapped to transcripts")
+    ) + 
+    facet_grid(~ sample_source, scales = 'free_x', space = 'free_x') + 
+    labs(
+        x = NULL, y = "Number of RNA-seq reads",
+        title = 'RNA-seq reads of CPTAC tumor and GTEx normal samples'
+    ) + 
+    guides(fill = guide_legend(title = NULL, reverse = TRUE)) + 
+    theme_bw() + 
+    theme(
+        legend.position = c(0.8, 1),
+        legend.justification = c(1, 1),
+        legend.direction = 'horizontal',
+        legend.background = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)    
+    )
+ggsave('../figures/salmon_ensembl_stats.pdf', width = 10, height = 6)
+```
