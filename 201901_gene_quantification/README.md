@@ -42,4 +42,4 @@ Run the gene quantification of all samples using all annotation sources by:
 
 
 ### Pipeline workflow
-![](ruledag.png)
+![](figures/ruledag.png)
