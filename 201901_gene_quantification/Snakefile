@@ -37,6 +37,7 @@ with open(GTEX_MANIFEST) as f:
 # Merge the sample IDs
 ALL_SAMPLES = CPTAC_SAMPLES | GTEX_SAMPLES
 
+
 # Get GTEx RNA-seq FASTQs {{{
 # We copy the BAM from MGI
 rule copy_gtex_rnaseq_bams:
@@ -64,13 +65,44 @@ rule copy_gtex_rnaseq_bams:
                     "external_data/GTEx_RNA_bam/{sample}.bam.bai"
                 )
 
+
+def cal_additional_threads(wildcards, input, output, threads):
+    return threads - 1
+
+
+rule collate_gtex_bam:
+    """Sort the BAM reads by their name."""
+    input: "{name}.bam"
+    output: temp("{name}.collated_by_name.bam")
+    threads: 5
+    params:
+        add_threads=cal_additional_threads
+    shell:
+        # Cannot use the fast mode, otherwise the Salmon estimation of the read
+        # distribution will be biased.
+        'samtools collate '
+        '--threads {params.add_threads} '  # samtools specifies #additional threads
+        '-r 50000 '  # Store 50000 reads in the memory
+        '-o {output} '
+        '{input} '
+        '$(mktemp -d)/'  # Store temporary files in a temporary folder
+
+
+rule stats_collated_bams:
+    """Generate the BAM statistics."""
+    output: "{name}.collated_by_name.bam.flagstat"
+    input: "{name}.collated_by_name.bam"
+    shell: 'samtools flagstat {input} > {output}'
+
+
 rule extract_gtex_bam_to_fastq:
     """Extract the reads as the paired FASTQs from a GTEx RNA-seq BAM."""
-    input: "external_data/GTEx_RNA_bam/{sample}.bam"
+    input: "external_data/GTEx_RNA_bam/{sample}.collated_by_name.bam"
     output:
         r1='external_data/GTEx_RNA_fq/{sample}.R1.fastq.gz',
         r2='external_data/GTEx_RNA_fq/{sample}.R2.fastq.gz'
     shell:
+        # Note that the BAM needs to be sorted by name
         'samtools fastq '
         '-1 {output.r1} -2 {output.r2} '
         '-c 9 '  # FASTQ gzip compression level
@@ -83,7 +115,9 @@ rule extract_gtex_bam_to_fastq:
 
 rule get_all_gtex_rna_fastqs:
     """Get the RNA-seq FASTQs of all GTEx samples."""
-    input: expand('external_data/GTEx_RNA_fq/{sample}.{read}.fastq.gz', sample=GTEX_SAMPLES, read=['R1', 'R2'])
+    input:
+        expand('external_data/GTEx_RNA_fq/{sample}.{read}.fastq.gz', sample=GTEX_SAMPLES, read=['R1', 'R2']),
+        expand('external_data/GTEx_RNA_bam/{sample}.collated_by_name.bam.flagstat', sample=GTEX_SAMPLES)
 # }}}
 
 
