@@ -24,7 +24,13 @@ Version of important tools:
 
 
 ## Pipeline execution
-Copy the GTEx RNA-seq BAMs
+Copy the GTEx RNA-seq BAMs and extract their reads to FASTQs by:
+
+    snakemake get_all_gtex_rna_fastqs
+
+Link the CPTAC RNA-seq FASTQs from GDC by:
+    
+    snakemake link_cptac_gdc_rna_fastqs
 
 Generate the Salmon indices of all annotation sources by:
 

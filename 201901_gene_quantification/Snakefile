@@ -120,9 +120,9 @@ rule get_all_gtex_rna_fastqs:
         expand('external_data/GTEx_RNA_bam/{sample}.collated_by_name.bam.flagstat', sample=GTEX_SAMPLES)
 # }}}
 
-
-rule link_gdc_rna_fastq:
-    """Link the RNA-seq fastqs locally."""
+# Get CPTAC RNA-seq FASTQs
+rule link_cptac_gdc_rna_fastqs:
+    """Link the CPTAC RNA-seq fastqs from GDC locally."""
     input: manifest=OMIC_UUID_MANIFEST,
            local_map=KATMAI_MAP
     output: expand('external_data/GDC_RNA_fq/{sample}.{read}.fastq.gz', sample=CPTAC_SAMPLES, read=['R1', 'R2'])
@@ -276,7 +276,7 @@ def find_rna_fastq(wildcards):
     elif sample in GTEX_SAMPLES:
         return {
             'r1_fq': f'external_data/GTEx_RNA_fq/{sample}.R1.fastq.gz',
-            'r2_fq': f'external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+            'r2_fq': f'external_data/GTEx_RNA_fq/{sample}.R2.fastq.gz',
         }
     else:
         raise ValueError(f'Sample {sample} is not part of CPTAC nor GTEx.')
@@ -309,6 +309,6 @@ rule salmon_quant_one_sample:
 
 rule salmon_quant_all_samples:
     """Generate the gene quantification by Salmon of all samples and all annotation sources."""
-    input: expand(rules.salmon_quant_one_sample.output[0], annotation_src=ALL_ANNOTATIONS, sample=CPTAC_SAMPLES)
+    input: expand(rules.salmon_quant_one_sample.output[0], annotation_src=ALL_ANNOTATIONS, sample=ALL_SAMPLES)
 
 # vim:set foldmethod=marker:
