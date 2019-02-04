@@ -39,3 +39,7 @@ Generate the Salmon indices of all annotation sources by:
 Run the gene quantification of all samples using all annotation sources by:
 
     snakemake salmon_quant_all_samples
+
+
+### Pipeline workflow
+![](ruledag.png)
