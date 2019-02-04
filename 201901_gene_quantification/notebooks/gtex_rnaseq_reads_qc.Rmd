@@ -1,0 +1,85 @@
+---
+title: "Quality check for GTEx RNA-seq samples"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+gtex_samples <- read_tsv('../CPTAC_matched_GTEx_BAMs_manifest.txt') %>%
+    pull(sample) %>%
+    sort()
+```
+
+```{r}
+parse_flagstat <- function(sample) {
+    pth <- str_interp('../external_data/GTEx_RNA_bam/${sample}.collated_by_name.bam.flagstat')
+    read_lines(pth) %>%
+        purrr::keep(~ str_detect(.x, 'read[12]')) %>%
+        tibble(raw_output = .) %>%
+        extract(
+            raw_output, 
+            c("qc_passed", "qc_failed", "strand"), 
+            '^(\\d+) \\+ (\\d+) (read[12])$',
+            convert = TRUE
+        ) %>%
+        mutate(
+            total = qc_passed + qc_failed, 
+            sample = sample
+        ) %>%
+        select(sample, strand, total, everything())
+}
+
+rna_read_stat_tbl <- purrr::map_dfr(gtex_samples, parse_flagstat) %>%
+    arrange(-total)
+```
+
+```{r}
+rna_read_stat_tbl %>% head()
+```
+
+```{r}
+plot_tbl <- rna_read_stat_tbl %>%
+    filter(strand == 'read1') %>%
+    select(-total, -strand) %>%
+    gather(qc_status, num_reads, c(qc_passed, qc_failed)) %>%
+    mutate(sample = case_when(
+        startsWith(sample, 'GTEX-R55F') ~ sample,
+        TRUE ~ str_sub(sample, end = -10)
+    )) %>%
+    mutate(
+        sample = factor(sample, levels = unique(sample))
+    )
+    
+plot_tbl
+```
+
+
+```{r, fig.height=7, fig.width=6}
+ggplot(
+    plot_tbl, 
+    aes(x = sample, y = num_reads, fill = qc_status)
+) + 
+    geom_col() + 
+    scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6)) + 
+    scale_fill_manual(
+        values = c("qc_passed" = "grey60", "qc_failed" = "darkred"),
+        labels = c("qc_passed" = "Passed", "qc_failed" = "Failed")
+    ) + 
+    labs(
+        x = NULL, y = "Number of RNA-seq reads",
+        title = 'RNA-seq reads of GTEx normals used in CPTAC'
+    ) + 
+    guides(fill = guide_legend(title = 'QC status', reverse = TRUE)) + 
+    theme_bw() + 
+    theme(
+        legend.position = c(1, 1) - 0.01,
+        legend.justification = c(1, 1),
+        axis.text.x = element_text(angle = 90, hjust = 1)    
+    )
+
+ggsave('../figures/gtex_rnaseq_read_count.pdf', width = 6, height = 7)
+```
+
