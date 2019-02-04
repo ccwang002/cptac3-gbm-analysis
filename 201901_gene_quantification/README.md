@@ -2,8 +2,12 @@
 RNA-seq gene expression quantification using Salmon.
 
 Two transcript annotations were used:
+
 - GENCODE v29 basic transcripts (Ensembl v94)
 - All Ensembl v94 transcripts
+
+For GTEx normal samples, their original RNA-seq BAMs are copied from MGI first
+to extract the reads into paired FASTQ files.
 
 
 ## Installation
@@ -11,13 +15,17 @@ Two transcript annotations were used:
     conda create -n gbm_rna \
         "python>=3.7" \
         snakemake-minimal \
+        samtools \
         salmon ipython
 
 Version of important tools:
 - Salmon: 0.12.0
+- samtools: 1.9
 
 
 ## Pipeline execution
+Copy the GTEx RNA-seq BAMs
+
 Generate the Salmon indices of all annotation sources by:
 
     snakemake build_all_salmon_indices

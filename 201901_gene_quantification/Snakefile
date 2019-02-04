@@ -64,6 +64,26 @@ rule copy_gtex_rnaseq_bams:
                     "external_data/GTEx_RNA_bam/{sample}.bam.bai"
                 )
 
+rule extract_gtex_bam_to_fastq:
+    """Extract the reads as the paired FASTQs from a GTEx RNA-seq BAM."""
+    input: "external_data/GTEx_RNA_bam/{sample}.bam"
+    output:
+        r1='external_data/GTEx_RNA_fq/{sample}.R1.fastq.gz',
+        r2='external_data/GTEx_RNA_fq/{sample}.R2.fastq.gz'
+    shell:
+        'samtools fastq '
+        '-1 {output.r1} -2 {output.r2} '
+        '-c 9 '  # FASTQ gzip compression level
+        '-0 /dev/null '  # Don't store not strand 1/2 reads
+        '-s /dev/null '  # Don't store singleton reads
+        '-N '  # Append /1 and /2 to the read name
+        '-F 0x900 '  # Filter out not primiary and supplementary alignment
+        '{input}'
+
+
+rule get_all_gtex_rna_fastqs:
+    """Get the RNA-seq FASTQs of all GTEx samples."""
+    input: expand('external_data/GTEx_RNA_fq/{sample}.{read}.fastq.gz', sample=GTEX_SAMPLES, read=['R1', 'R2'])
 # }}}
 
 
