@@ -1,0 +1,83 @@
+---
+title: "Testing merging Salmon quants"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(tximport)
+library(ensembldb)
+```
+
+```{r}
+edb <- EnsDb('../external_data/ensembl_ref/EnsDb.Hsapiens.v94.sqlite')
+edb
+```
+
+
+Make a transcript ID to gene ID converter
+```{r}
+tx2gene <- transcripts(
+        edb, 
+        columns=c('gene_id_version', 'tx_id_version', 'gene_name'), 
+        return.type = 'data.frame'
+    ) %>%
+    as_tibble() %>%
+    dplyr::select(tx_id_version, gene_name)
+tx2gene %>% head()
+```
+
+## Ensembl
+```{r}
+sample_tbl <- tibble(
+    sample=list.files('../processed_data/salmon_quants/gencode')
+)
+
+nrow(sample_tbl)
+```
+
+
+```{r}
+sample_tbl <- sample_tbl %>%
+    mutate(
+        gencode_quant_pth = file.path('../processed_data/salmon_quants/gencode', sample, 'quant.sf'),
+        ensembl_quant_pth = file.path('../processed_data/salmon_quants/ensembl', sample, 'quant.sf')
+    )
+
+sample_tbl %>% head()
+```
+
+```{r}
+gencode_quant_files <- sample_tbl$gencode_quant_pth %>% set_names(sample_tbl$sample)
+ensembl_quant_files <- sample_tbl$ensembl_quant_pth %>% set_names(sample_tbl$sample)
+```
+
+```{r}
+gencode_txi <- tximport(
+    gencode_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE
+)
+
+ensembl_txi <- tximport(
+    ensembl_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE
+)
+```
+
+```{r}
+gencode_txi$abundance[c("GAPDH", "TP53"), 1:5]
+```
+
+```{r}
+ensembl_txi$abundance[c("GAPDH", "TP53"), 1:5]
+```
+
+```{r}
+saveRDS(gencode_txi, '../processed_data/cptac3_gbm_gene_level_tpm.gencode.rds')
+saveRDS(ensembl_txi, '../processed_data/cptac3_gbm_gene_level_tpm.ensembl.rds')
+```
+
