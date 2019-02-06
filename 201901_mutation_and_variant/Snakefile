@@ -71,7 +71,7 @@ rule annotated_vcf_to_maf:
         gunzip -c {input} > {output.uncompress_vcf}
         perl {params.vcf2maf} \
             --input-vcf {output.uncompress_vcf} --output-maf {params.uncompress_maf} \
-            --tumor-id {wildcards.sample}.T --normal-id {wildcards.sample}.N \
+            --tumor-id {wildcards.sample}_T --normal-id {wildcards.sample}_N \
             --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
             --filter-vcf 0 --ncbi-build GRCh38
         gzip -9 {params.uncompress_maf}
