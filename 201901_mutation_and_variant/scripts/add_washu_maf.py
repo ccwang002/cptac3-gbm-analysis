@@ -5,7 +5,7 @@ from sqlalchemy import (
     MetaData, Table
 )
 from maf_utils import WashUMAF
-from make_db import create_cols, setup_cli, BATCH_SIZE
+from add_gdc_maf import create_cols, setup_cli, BATCH_SIZE
 
 logger = logging.getLogger(__name__)
 
