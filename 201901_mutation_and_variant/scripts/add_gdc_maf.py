@@ -31,6 +31,7 @@ SELECT
     hgvsc, hgvsp, hgvsp_short,
     all_effects
 FROM gdc_per_caller
+WHERE filter IN ('PASS', 'panel_of_normals')
 GROUP BY sample, chromosome, start, end, ref_allele, alt_allele
 """
 
