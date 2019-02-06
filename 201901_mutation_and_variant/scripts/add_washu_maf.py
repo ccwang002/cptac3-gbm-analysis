@@ -72,14 +72,15 @@ def define_db_schema(metadata):
     Table('washu', metadata, *create_cols(WashUMutationCall))
 
 
-def load_washu_maf_to_db(conn, metadata, maf_pth):
+def load_washu_maf_to_db(conn, metadata, maf_pth, samples):
     """Load WashU MAF to the database."""
     ins = metadata.tables['washu'].insert()
     # Insert mutation calls by batches
     ins_batch = []
     for i, mut in enumerate(read_washu_maf(maf_pth), 1):
-        # Add new record into batch
-        ins_batch.append(mut._asdict())
+        if mut.sample in samples:
+            # Add new record into batch
+            ins_batch.append(mut._asdict())
 
         # Commit the batch when a batch is full
         if len(ins_batch) >= BATCH_SIZE:
@@ -110,7 +111,7 @@ def main(db_pth, washu_maf_pth, samples):
     logger.info(f'Subset the MAF to include only {len(samples)} samples')
 
     logger.info(f'Load WashU annotated mutation calls from {washu_maf_pth}')
-    load_washu_maf_to_db(conn, metadata, washu_maf_pth)
+    load_washu_maf_to_db(conn, metadata, washu_maf_pth, samples)
 
     logger.info('Complete')
 
