@@ -58,6 +58,23 @@ nrow(mgi_wxs_bams)
 ```
 
 
+### hg38 WGS BAMs on katmai
+```{r}
+katmai_wgs_bams <- local_data_location_tbl %>% filter(system == 'katmai' & experimental_strategy == 'WGS') %>%
+    select(data_name, case, experimental_strategy, sample_type, UUID, data_format, system, data_path)
+
+nrow(katmai_wgs_bams)
+```
+
+`C3L-01834` only have normal WGS BAM:
+```{r}
+katmai_wgs_bams %>% 
+    select(case, sample_type, UUID) %>%
+    spread(sample_type, UUID) %>%
+    filter_at(vars(c('blood_normal', 'tumor')), any_vars(is.na(.)))
+```
+
+
 ### RNA-seq FASTQs on katmai
 ```{r}
 katmai_rna_fqs <- local_data_location_tbl %>% 
