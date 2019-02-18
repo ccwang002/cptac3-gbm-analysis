@@ -1,0 +1,41 @@
+import csv
+
+# Path the manifest of GDC UUIDs of all discovery samples
+OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+
+BICSEQ2_CNV_FOLDER = '/diskmnt/Projects/cptac_downloads_4/CPTAC3_GBM/201902_somatic_wgs_cnv/run_cases.GBM-subset'
+
+# Collect all the samples IDs
+CPTAC_SAMPLES = set()
+
+# Collect all CPTAC samples
+# Note that we skip for some samples if they don't have RNA-seq available
+with open(OMIC_UUID_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        # Skip for samples without WGS BAM data
+        if row['wgs_blood_normal_BAM'] == 'NA' or row['wgs_tumor_BAM'] == 'NA':
+            continue
+        CPTAC_SAMPLES.add(row['case'])
+
+
+rule copy_bicseq2_cnv_one_sample:
+    """Copy and rename the CNV output of one sample by BIC-seq2 pipeline."""
+    output:
+        gene_cnv='external_data/bicseq2_cnv/gene/{sample}.tsv.gz',
+        seg_cnv='external_data/bicseq2_cnv/segment/{sample}.tsv.gz'
+    input:
+        gene_cnv=f'{BICSEQ2_CNV_FOLDER}/{{sample}}/annotation/{{sample}}.gene_level.log2.seg',
+        seg_cnv=f'{BICSEQ2_CNV_FOLDER}/{{sample}}/segmentation/{{sample}}.cnv'
+    shell:
+        """
+        gzip -c -9 {input.gene_cnv} > {output.gene_cnv}
+        gzip -c -9 {input.seg_cnv} > {output.seg_cnv}
+        """
+
+
+rule copy_bicseq2_cnv_all_samples:
+    """Copy the BIC-seq2 CNV output of all samples."""
+    input:
+        expand(rules.copy_bicseq2_cnv_one_sample.output['gene_cnv'], sample=CPTAC_SAMPLES),
+        expand(rules.copy_bicseq2_cnv_one_sample.output['seg_cnv'], sample=CPTAC_SAMPLES)
