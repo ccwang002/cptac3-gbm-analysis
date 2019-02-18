@@ -11,7 +11,7 @@ for details.
 
 ## Proteomic QC
 ### `201811_locate_gdc_data` on denali
-💡 **Use `201901_locate_discovery_data` instead**<br>
+📍 *Use `201901_locate_discovery_data` instead*<br>
 Locate the current GDC data release of CPTAC3 GBM cohort and their local
 whereabouts.
 
@@ -23,7 +23,7 @@ with GTEx normals using single-shot mass spectrometry.
 
 
 ### `201811_rnaseq_salmon` on katmai
-💡 **Use `201901_gene_quantification` instead**<br>
+📍 *Use `201901_gene_quantification` instead*<br>
 RNA quantification of high-confident protein coding trasncripts (Ensembl v90).
 Only transcripts of protein coding with TSL 1 or TSL NA (e.g. single exon
 trasncripts) were included. Since the mapping rate using this approach is low,
