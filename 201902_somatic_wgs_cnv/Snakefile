@@ -39,3 +39,25 @@ rule copy_bicseq2_cnv_all_samples:
     input:
         expand(rules.copy_bicseq2_cnv_one_sample.output['gene_cnv'], sample=CPTAC_SAMPLES),
         expand(rules.copy_bicseq2_cnv_one_sample.output['seg_cnv'], sample=CPTAC_SAMPLES)
+
+
+rule plot_seg_cnv_one_sample:
+    """Plot the CNV segments of all chromosomes of one sample."""
+    output:
+        fig='processed_data/seg_cnv_plot/{sample}.pdf'
+    input:
+        seg_cnv=rules.copy_bicseq2_cnv_one_sample.output['seg_cnv']
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            -e USERID=$(id -u) -e USER=$(id -u -n) \
+            -v $PWD:/project \
+            lbwang/rocker-genome \
+            Rscript /project/scripts/plot_seg_cnv.R {wildcards.sample} /project/{input} /project/{output} \
+            >/dev/null 2>&1
+        """
+
+
+rule plot_seg_cnv_all_samples:
+    """Plot the CNV segments of all samples."""
+    input: expand(rules.plot_seg_cnv_one_sample.output['fig'], sample=CPTAC_SAMPLES)
