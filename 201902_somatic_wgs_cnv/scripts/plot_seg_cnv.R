@@ -79,11 +79,19 @@ read_seg_cnv <- function(pth) {
             binNum = col_integer()
         )
     ) %>%
-        mutate(cnv_status = case_when(
-            `log2.copyRatio` >= 0.2 ~ 'Gain',
-            `log2.copyRatio` <= -0.2 ~ 'Loss',
-            TRUE ~ 'Neutral'
-        ))
+        mutate(
+            cnv_status = case_when(
+                `log2.copyRatio` >= 0.2 ~ 'Gain',
+                `log2.copyRatio` <= -0.2 ~ 'Loss',
+                TRUE ~ 'Neutral'
+            ),
+            # Clamp the min and max value
+            `log2.copyRatio` = case_when(
+                `log2.copyRatio` > 3 ~ 3,
+                `log2.copyRatio` < -3 ~ -3,
+                TRUE ~ `log2.copyRatio`
+            )
+        )
     seg_cnv_gr <- GRanges(
         seqnames = seg_cnv_tbl$chrom,
         ranges = IRanges(start = seg_cnv_tbl$start, end = seg_cnv_tbl$end),
@@ -115,9 +123,7 @@ gtrellis_layout(
     nrow = 3, compact = TRUE,
     xlab = NULL,
     track_ylab = c('', 'CN log2 ratio', ''),
-    track_ylim = c(
-        range(seg_cnv_gr$cnv_log2)
-    ),
+    track_ylim = c(-3, 3),
     legend = list(cnv_status_legend@grob, cytoband_legend@grob),
     title = str_interp('Somatic copy number ratio of ${sample}')
 )
