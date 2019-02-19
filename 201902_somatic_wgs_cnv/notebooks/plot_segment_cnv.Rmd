@@ -24,13 +24,19 @@ hg38_xlims = tibble(
 
 Load cytoband info
 ```{r}
-# hg38_cytoband = circlize::read.cytoband(species = "hg38")$df %>%
-#     set_names('chrom', 'start', 'end', 'name', 'cytoband_type') %>%
-#     as_tibble()
-
-# saveRDS(hg38_cytoband, '../cytoband_hg38.rds')
-
 hg38_cytoband = readRDS('../cytoband_hg38.rds')
+
+# simplify the cytoband
+hg38_cytoband <- hg38_cytoband %>%
+    filter(chrom %in% seqnames(hg38_canonical_seqinfo)) %>%
+    mutate(simplified_cytoband_type = case_when(
+        cytoband_type == 'acen' ~ 'centromere',
+        startsWith(name, 'p') ~ 'p arm',
+        startsWith(name, 'q') ~ 'q arm',
+        TRUE ~ NA_character_
+    )) %>%
+    group_by(chrom, simplified_cytoband_type) %>%
+    summarize(start = min(start), end = max(end)) 
 ```
 
 Customize the cytoband display. showing only the p/q arm and the centrometer location
@@ -47,9 +53,9 @@ cytoband_coloring <- function(cytoband_chr) {
     cytoband_chr %>% 
         transmute(
             col = case_when(
-                cytoband_type == 'acen' ~ rgb(217, 47, 39, maxColorValue = 255),
-                startsWith(name, 'p') ~ 'gray50',
-                startsWith(name, 'q') ~ 'gray80',
+                simplified_cytoband_type == 'centromere' ~ rgb(217, 47, 39, maxColorValue = 255),
+                simplified_cytoband_type == 'p arm' ~ 'gray50',
+                simplified_cytoband_type == 'q arm'~ 'gray80',
                 TRUE ~ '#FFFFFF'
             )
         ) %>% 
@@ -181,5 +187,74 @@ add_track(
     hg38_cytoband, 
     panel_fun = cytoband_panel_drawer
 )
+```
+
+
+### Plot all samples
+```{r}
+all_samples <- tibble(
+    seg_cnv_pth = list.files('../external_data/bicseq2_cnv/segment', full.names = TRUE)
+) %>%
+    mutate(sample = str_sub(seg_cnv_pth, start = -16, end = -8))
+```
+
+```{r}
+all_samples_gr <- purrr::pmap(all_samples, function(sample, seg_cnv_pth) read_seg_cnv(seg_cnv_pth)) %>%
+    set_names(nm = all_samples$sample)
+```
+
+```{r}
+num_samples = length(all_samples_gr)
+
+heatmap_col_fun = circlize::colorRamp2(c(-1, -0.1, 0, 0.1, 1), c('blue', 'white', 'white', 'white', 'red'))
+cnv_heatmap_legend = ComplexHeatmap::Legend(
+    col_fun = heatmap_col_fun, 
+    at = c(-1, -0.2, 0, 0.2, 1),
+    labels = c('-1', 'Loss (-0.2)', 'Neutral', 'Gain (0.2)', '1'),
+    title = "CN status",
+    legend_height = unit(2.5, "cm")
+)
+
+# pdf('../processed_data/seg_cnv_all_chroms_all_samples.pdf', width = 20, height = 10)
+pdf('../processed_data/seg_cnv_chr1_chr19_all_samples.pdf', width = 10, height = 10)
+gtrellis_layout(
+    data = hg38_xlims %>% filter(chrom %in% c('chr1', 'chr19')),
+    # data = hg38_xlims,
+    n_track = 2 + num_samples,
+    track_axis = FALSE,
+    track_height = unit.c(
+        1.5 * grobHeight(textGrob("1XY")), 
+        rep(unit(1, "null"), num_samples), 
+        unit(4, 'mm')
+    ),
+    track_ylab = c('', names(all_samples_gr)[1:num_samples], ''),
+    lab_fontsize = 8,
+    # nrow = 2, compact = TRUE,
+    xlab = NULL,
+    legend = list(cnv_heatmap_legend@grob, cytoband_legend@grob),
+    title = str_interp('Somatic copy number ratio of all GBM samples'),
+    padding = unit(c(2, 10, 2, 2), "mm")
+)
+# Track for chromosome names
+add_track(panel_fun = function(gr) {
+    chr = str_sub(get_cell_meta_data("name"), start = 4)
+    grid.rect(gp = gpar(fill = "#EEEEEE"))
+    grid.text(chr, gp = gpar(fontsize = 10))
+})
+for (i in 1:num_samples) {
+    seg_cnv_gr = all_samples_gr[[i]]
+    # Track for CNV ratios
+    add_heatmap_track(
+        seg_cnv_gr, 
+        seg_cnv_gr$cnv_log2,
+        fill = heatmap_col_fun
+    )
+}
+# Track for cytoband
+add_track(
+    hg38_cytoband, 
+    panel_fun = cytoband_panel_drawer
+)
+dev.off()
 ```
 
