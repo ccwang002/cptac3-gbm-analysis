@@ -1,75 +1,59 @@
----
-title: "Annotate gene level CNV"
-output: html_notebook
----
-
-```{r, message=FALSE}
-library(tidyverse)
-library(ensembldb)
-library(SummarizedExperiment)
-```
-
-```{r}
-ENSDB_PTH <- '../../201901_gene_quantification/external_data/ensembl_ref/EnsDb.Hsapiens.v94.sqlite'
-SEQINFO_PTH <- '../seqinfo_GRCh38.d1.vd1.rds'
-```
+#!/usr/bin/env Rscript
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(ensembldb))
+suppressPackageStartupMessages(library(SummarizedExperiment))
 
 
-## Read the gene level CNV of all samples
-```{r}
-sample_tbl <- read_tsv('../../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv') %>%
-    dplyr::filter_at(vars(wgs_blood_normal_BAM, wgs_tumor_BAM), all_vars(!is.na(.)))
-```
+ENSDB_PTH <- '/repo/201901_locate_discovery_data/annotations/EnsDb.Hsapiens.v94.sqlite'
+SEQINFO_PTH <- '/repo/201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds'
 
-```{r}
-gene_cnv_tbl <- sample_tbl$case %>%
+# Parse the command line arguments
+args = commandArgs(trailingOnly=TRUE)
+# Output path
+all_gene_cnv_se_pth <- args[1]
+# Path to all samples' gene CNV tsv.gz
+gene_cnv_pths <- args[-1]
+
+
+# Read all the samples
+samples <- str_match(gene_cnv_pths, '(C3[^/]+)\\.tsv\\.gz$')[, 2]
+message(str_interp('Read ${length(samples)} samples.'))
+
+# Read all gene CNV tables and merge into one
+gene_cnv_tbl <- samples %>%
     purrr:::map(function(case) {
-        pth = str_interp('../external_data/bicseq2_cnv/gene/${case}.tsv.gz')
+        pth = str_interp('/repo/201902_somatic_wgs_cnv/external_data/bicseq2_cnv/gene/${case}.tsv.gz')
         read_tsv(
-            pth, 
+            pth,
             col_names = c('symbol', 'chrom', 'start', 'end', case),
             col_types = cols(
               symbol = col_character(),
               chrom = col_character(),
               .default = col_double()
-            ) 
+            )
         )
     }) %>%
     purrr:::reduce(.f = ~ full_join(.x, .y, by = c('symbol', 'chrom', 'start', 'end')))
-```
 
-```{r}
-gene_cnv_tbl %>% head()
-```
-
-## Read genome and annotation
-SeqInfo object for GDC's genome 
-```{r}
+# Read seqinfo
 hg38_seqinfo <- readRDS(SEQINFO_PTH)
-```
 
-Read the Ensembl annotation and let it use UCSC chromosome naming style
-```{r}
+# Read the Ensembl annotation and let it use UCSC chromosome naming style
 edb <- EnsDb(ENSDB_PTH)
 seqlevelsStyle(edb) <- 'UCSC'
-```
 
-
-## Annotate the genes in the CNV call with the consistent Ensembl annotation.
-We only select those genes on canonical chromosomes.
-```{r}
+# Select only the protein coding genes on canonical chromosomes.
 edb_genes <- genes(
-    edb, 
+    edb,
     filter = ~ gene_biotype != 'LRG_gene' & seq_name %in% str_c('chr', c(1:22, 'X', 'Y', 'M')),
     columns = c("seq_name", "gene_seq_start", "gene_seq_end", "seq_strand", "gene_id", "gene_id_version", "symbol"),
     return.type = "data.frame"
 )
-```
 
-We query for the latest gene symbol and the Ensembl gene ID for each row.
-```{r}
+# Try to update the gene symbol by querying the Ensembl annotation
+# It will retrieve the Ensembl gene ID which is more stable
 new_gene_annotation_tbl <- purrr::pmap_dfr(
-    gene_cnv_tbl, 
+    gene_cnv_tbl,
     function(symbol, chrom, start, end, ...) {
         # Try to use the symbol name to find the gene
         g_start = start
@@ -82,13 +66,13 @@ new_gene_annotation_tbl <- purrr::pmap_dfr(
             edb_end = current_gene$gene_seq_end
             if ((edb_chrom == chrom) & (edb_start == g_start + 1) & (edb_end == g_end)) {
                 return(current_gene)
-            } 
+            }
         }
         # Use location to find the gene
         current_gene = edb_genes %>% subset(seq_name == chrom & gene_seq_start == g_start + 1 & gene_seq_end == g_end)
         if (nrow(current_gene) > 1) {
             cat(symbol, 'has more than one entry in EnsDb\n')
-            return(NA) 
+            return(NA)
         } else if (nrow(current_gene) == 0) {
             cat(symbol, 'not found\n')
             return(NA)
@@ -96,10 +80,8 @@ new_gene_annotation_tbl <- purrr::pmap_dfr(
         return(current_gene)
     }
 ) %>% as_tibble()
-```
 
-Add back the original symbol name
-```{r}
+# Add back the original gene symbol per row
 row_annotation_tbl <- new_gene_annotation_tbl %>%
     mutate(
         seq_strand = case_when(
@@ -110,16 +92,15 @@ row_annotation_tbl <- new_gene_annotation_tbl %>%
         original_symbol = gene_cnv_tbl$symbol
     ) %>%
     dplyr::select(-gene_biotype)
-```
 
-The symbol names are identical
-```{r}
-row_annotation_tbl %>%
+
+# Check if any row has a different gene symbol
+rows_with_symbol_change <- row_annotation_tbl %>%
     dplyr::filter(symbol != original_symbol)
-```
 
+message(str_interp('${nrow(rows_with_symbol_change)} rows have different gene symbols after Ensembl query'))
 
-```{r}
+# Create the row gene ranges
 row_gr <- makeGRangesFromDataFrame(
     row_annotation_tbl %>% column_to_rownames(var = 'symbol'),
     seqnames.field = 'seq_name',
@@ -129,12 +110,12 @@ row_gr <- makeGRangesFromDataFrame(
     keep.extra.columns = TRUE,
     seqinfo = hg38_seqinfo
 )
-row_gr
-```
 
-```{r}
+# Convert gene CNVs as a matrix
 gene_cnv_mat <- as.matrix(gene_cnv_tbl[, -(1:4)])
-gene_cnv_se <- SummarizedExperiment(
+
+# Combine all gene CNVs as a SummarizedExperiment object
+all_gene_cnv_se <- SummarizedExperiment(
     rowRanges = row_gr,
     assays = list(
         cnv_log2 = gene_cnv_mat
@@ -142,16 +123,10 @@ gene_cnv_se <- SummarizedExperiment(
     metadata = list(
         cohort = 'CPTAC3 GBM discovery cohort (incomplete)',
         description = 'Gene level somatic CNV (log2) based on whole genome sequencing',
-        pipeline = 'BIC-seq2 https://github.com/ding-lab/BICSEQ2',
+        pipeline = 'BIC-seq2 pipeline at https://github.com/ding-lab/BICSEQ2',
         annotation = 'GENCODE v29 (Ensembl v94) protein coding only',
         contact = 'Liang-Bo Wang <liang-bo.wang@wustl.edu>'
     )
 )
-```
 
-```{r}
-saveRDS(gene_cnv_se, '../processed_data/gene_cnv.rds')
-```
-
-
-
+saveRDS(all_gene_cnv_se, all_gene_cnv_se_pth)

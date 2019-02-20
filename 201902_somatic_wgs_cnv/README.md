@@ -10,7 +10,7 @@ Copy the results from the raw pipeline output:
 
 Create the R objects of gene and segment CNV of all samples for downstream analysis:
 
-    snakemake merge_all_segment_cnvs
+    snakemake merge_all_segment_cnvs merge_all_gene_cnvs
 
 Plot the segment CNV under `processed_data/seg_cnv_plot`:
 

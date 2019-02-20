@@ -59,6 +59,24 @@ rule merge_all_segment_cnvs:
         """
 
 
+rule merge_all_gene_cnvs:
+    """Merge all gene CNVs into one SummarizedExperiment object."""
+    output: rds='processed_data/gene_cnv.rds'
+    input: gene_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_genes']
+    params:
+        gene_cnv_pths=lambda wildcards, input: [f'/repo/201902_somatic_wgs_cnv/{pth}' for pth in input['gene_cnvs']]
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            -e USERID=$(id -u) -e USER=$(id -u -n) \
+            -v $(dirname $PWD):/repo \
+            lbwang/rocker-genome \
+            Rscript /repo/201902_somatic_wgs_cnv/scripts/collect_all_gene_cnvs.R \
+                /repo/201902_somatic_wgs_cnv/{output} \
+                {params.gene_cnv_pths}
+        """
+
+
 rule plot_seg_cnv_one_sample:
     """Plot the CNV segments of all chromosomes of one sample."""
     output:
