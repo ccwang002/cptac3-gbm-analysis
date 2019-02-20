@@ -132,12 +132,13 @@ read_seg_cnv <- function(pth) {
 }
 ```
 
+
+## Plot segment CNV of one sample
 ```{r}
 sample = 'C3L-00365'
 seg_cnv_pth = str_interp('../external_data/bicseq2_cnv/segment/${sample}.tsv.gz')
 seg_cnv_gr = read_seg_cnv(seg_cnv_pth)
 ```
-
 
 ```{r, fig.width=9, fig.height=6}
 cnv_status_legend <- ComplexHeatmap::Legend(
@@ -190,7 +191,7 @@ add_track(
 ```
 
 
-### Plot all samples
+## Plot all samples together
 ```{r}
 all_samples <- tibble(
     seg_cnv_pth = list.files('../external_data/bicseq2_cnv/segment', full.names = TRUE)

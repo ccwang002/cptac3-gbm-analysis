@@ -17,6 +17,7 @@ Plot the segment CNV under `processed_data/seg_cnv_plot`:
 ## Notebooks
 The R Notebooks can be run using the Docker image [lbwang/rocker-genome].
 
-- `plot_segment_cnv.Rmd`: Script to plot the segment CNV of one sample
+- `plot_segment_cnv.Rmd`: Script to plot the segment CNV of all samples together
+- `annotate_gene_cnv.Rmd`: Script to read and annotate the gene level CNV of all samples
 
 [lbwang/rocker-transcriptome]: https://hub.docker.com/r/lbwang/rocker-genome
