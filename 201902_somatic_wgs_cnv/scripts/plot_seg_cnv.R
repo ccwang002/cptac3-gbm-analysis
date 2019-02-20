@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(gtrellis))
 
 
-hg38_canonical_seqinfo = readRDS('/project/seqinfo_GRCh38.d1.vd1.rds') %>%
+hg38_canonical_seqinfo = readRDS('/repo/201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds') %>%
     keepStandardChromosomes()
 
 hg38_xlims = tibble(
@@ -13,7 +13,7 @@ hg38_xlims = tibble(
 ) %>%
     filter(chrom != 'chrM')
 
-hg38_cytoband = readRDS('/project/cytoband_hg38.rds')
+hg38_cytoband = readRDS('/repo/201901_locate_discovery_data/annotations/cytoband_hg38.rds')
 
 
 # Cytoband legend

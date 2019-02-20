@@ -48,12 +48,13 @@ rule plot_seg_cnv_one_sample:
     input:
         seg_cnv=rules.copy_bicseq2_cnv_one_sample.output['seg_cnv']
     shell:
+        # Map the git repo to /repo inside Docker so it can access data from other projects
         """
         docker run -t --rm -u $(id -u):$(id -g) \
             -e USERID=$(id -u) -e USER=$(id -u -n) \
-            -v $PWD:/project \
+            -v $(dirname $PWD):/repo \
             lbwang/rocker-genome \
-            Rscript /project/scripts/plot_seg_cnv.R {wildcards.sample} /project/{input} /project/{output} \
+            Rscript /repo/201902_somatic_wgs_cnv/scripts/plot_seg_cnv.R {wildcards.sample} /repo/201902_somatic_wgs_cnv/{input} /repo/201902_somatic_wgs_cnv/{output} \
             >/dev/null 2>&1
         """
 
