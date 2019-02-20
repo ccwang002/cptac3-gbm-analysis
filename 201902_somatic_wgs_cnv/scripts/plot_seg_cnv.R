@@ -3,9 +3,11 @@ suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(gtrellis))
 
 
+# Read seqinfo of the canonical chromosomes
 hg38_canonical_seqinfo = readRDS('/repo/201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds') %>%
     keepStandardChromosomes()
 
+# Create the genome regions to plot (by default is all the chromosomes without chrM)
 hg38_xlims = tibble(
     chrom = seqnames(hg38_canonical_seqinfo),
     start = 0,  # Same as gtrellis default
@@ -13,8 +15,8 @@ hg38_xlims = tibble(
 ) %>%
     filter(chrom != 'chrM')
 
+# Read cytoband information
 hg38_cytoband = readRDS('/repo/201901_locate_discovery_data/annotations/cytoband_hg38.rds')
-
 
 # Cytoband legend
 cytoband_legend <- ComplexHeatmap::Legend(
@@ -67,52 +69,26 @@ cnv_status_legend <- ComplexHeatmap::Legend(
     background = 'transparent'
 )
 
-
-read_seg_cnv <- function(pth) {
-    seg_cnv_tbl <- read_tsv(
-        pth,
-        col_types = cols(
-            .default = col_double(),
-            chrom = col_character(),
-            start = col_integer(),
-            end = col_integer(),
-            binNum = col_integer()
-        )
-    ) %>%
-        mutate(
-            cnv_status = case_when(
-                `log2.copyRatio` >= 0.2 ~ 'Gain',
-                `log2.copyRatio` <= -0.2 ~ 'Loss',
-                TRUE ~ 'Neutral'
-            ),
-            # Clamp the min and max value
-            `log2.copyRatio` = case_when(
-                `log2.copyRatio` > 3 ~ 3,
-                `log2.copyRatio` < -3 ~ -3,
-                TRUE ~ `log2.copyRatio`
-            )
-        )
-    seg_cnv_gr <- GRanges(
-        seqnames = seg_cnv_tbl$chrom,
-        ranges = IRanges(start = seg_cnv_tbl$start, end = seg_cnv_tbl$end),
-        strand = "*",
-        cnv_log2 = seg_cnv_tbl$log2.copyRatio,
-        cnv_status = seg_cnv_tbl$cnv_status,
-        seqinfo = hg38_canonical_seqinfo
-    )
-    seg_cnv_gr
-}
-
 # Parse command line
 args = commandArgs(trailingOnly=TRUE)
 sample = args[1]
-seg_cnv_pth = args[2]
+all_seg_cnv_pth = args[2]
 fig_pth = args[3]
 
-
 # Read the segment CNV result
-seg_cnv_gr = read_seg_cnv(seg_cnv_pth)
+all_seg_cnv_grl = readRDS(all_seg_cnv_pth)
 
+# Select only the sample of interest
+seg_cnv_gr = all_seg_cnv_grl[[sample]]
+
+# Clamp the min/max CNV ratio for better visualization
+clamp_range = c(min=-2.5, max=2.5)
+cn_ratio <- seg_cnv_gr$log2_copy_ratio
+cn_ratio[cn_ratio > clamp_range['max']] <- clamp_range['max']
+cn_ratio[cn_ratio < clamp_range['min']] <- clamp_range['min']
+seg_cnv_gr$log2_copy_ratio <- cn_ratio
+
+# Plot the CNV segments
 pdf(fig_pth, width = 9, height = 6)
 # Specify the number of tracks and aesthetics
 gtrellis_layout(
@@ -123,8 +99,8 @@ gtrellis_layout(
     nrow = 3, compact = TRUE,
     xlab = NULL,
     track_ylab = c('', 'CN log2 ratio', ''),
-    track_ylim = c(-3, 3),
-    legend = list(cnv_status_legend@grob, cytoband_legend@grob),
+    track_ylim = clamp_range,
+    legend = list(cnv_status_legend, cytoband_legend),
     title = str_interp('Somatic copy number ratio of ${sample}')
 )
 # Track for chromosome names
@@ -134,15 +110,12 @@ add_track(panel_fun = function(gr) {
     grid.text(chr, gp = gpar(fontsize = 10))
 })
 # Track for CNV ratios
+cnv_color = c("Gain" = 'red', "Loss" = 'blue', "Neutral" = 'gray60')
 add_segments_track(
     seg_cnv_gr,
-    seg_cnv_gr$cnv_log2,
+    seg_cnv_gr$log2_copy_ratio,
     gp = gpar(
-        col = case_when(
-            seg_cnv_gr$cnv_status == 'Gain' ~ "red",
-            seg_cnv_gr$cnv_status == 'Loss' ~ "blue",
-            TRUE ~ "gray60"
-        ),
+        col = cnv_color[as.character(seg_cnv_gr$cnv_status)],
         lwd = 4
     )
 )

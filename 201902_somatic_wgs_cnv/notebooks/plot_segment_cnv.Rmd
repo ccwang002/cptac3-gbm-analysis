@@ -11,7 +11,7 @@ library(gtrellis)
 
 Load hg38 seqinfo
 ```{r}
-hg38_seqinfo = readRDS('../seqinfo_GRCh38.d1.vd1.rds')
+hg38_seqinfo = readRDS('../../201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds')
 hg38_canonical_seqinfo = keepStandardChromosomes(hg38_seqinfo)
 
 hg38_xlims = tibble(
@@ -24,7 +24,7 @@ hg38_xlims = tibble(
 
 Load cytoband info
 ```{r}
-hg38_cytoband = readRDS('../cytoband_hg38.rds')
+hg38_cytoband = readRDS('../../201901_locate_discovery_data/annotations/cytoband_hg38.rds')
 
 # simplify the cytoband
 hg38_cytoband <- hg38_cytoband %>%
@@ -102,43 +102,23 @@ add_track(
 )
 ```
 
-Read a sample's segment CNV result as a GRanges object:
+## Read all segment CNVs
 ```{r}
-read_seg_cnv <- function(pth) {
-    seg_cnv_tbl <- read_tsv(
-        pth,
-        col_types = cols(
-            .default = col_double(),
-            chrom = col_character(),
-            start = col_integer(),
-            end = col_integer(),
-            binNum = col_integer()
-        )
-    ) %>%
-        mutate(cnv_status = case_when(
-            `log2.copyRatio` >= 0.2 ~ 'Gain',
-            `log2.copyRatio` <= -0.2 ~ 'Loss',
-            TRUE ~ 'Neutral'
-        ))
-    seg_cnv_gr <- GRanges(
-        seqnames = seg_cnv_tbl$chrom,
-        ranges = IRanges(start = seg_cnv_tbl$start, end = seg_cnv_tbl$end),
-        strand = "*",
-        cnv_log2 = seg_cnv_tbl$log2.copyRatio,
-        cnv_status = seg_cnv_tbl$cnv_status,
-        seqinfo = hg38_seqinfo
-    )
-    seg_cnv_gr
-}
+all_seg_cnv = readRDS('../processed_data/segment_cnv.rds')
 ```
 
 
 ## Plot segment CNV of one sample
 ```{r}
 sample = 'C3L-00365'
-seg_cnv_pth = str_interp('../external_data/bicseq2_cnv/segment/${sample}.tsv.gz')
-seg_cnv_gr = read_seg_cnv(seg_cnv_pth)
+seg_cnv_gr = all_seg_cnv[[sample]]
+clamp_range = c(-2.5, 2.5)
+cn_ratio <- seg_cnv_gr$log2_copy_ratio
+cn_ratio[cn_ratio > clamp_range[2]] <- clamp_range[2]
+cn_ratio[cn_ratio < clamp_range[1]] <- clamp_range[1]
+seg_cnv_gr$log2_copy_ratio <- cn_ratio
 ```
+
 
 ```{r, fig.width=9, fig.height=6}
 cnv_status_legend <- ComplexHeatmap::Legend(
@@ -158,10 +138,8 @@ gtrellis_layout(
     nrow = 3, compact = TRUE,
     xlab = NULL,
     track_ylab = c('', 'CN log2 ratio', ''),
-    track_ylim = c(
-        range(seg_cnv_gr$cnv_log2)
-    ),
-    legend = list(cnv_status_legend@grob, cytoband_legend@grob),
+    track_ylim = clamp_range,
+    legend = list(cnv_status_legend, cytoband_legend),
     title = str_interp('Somatic copy number ratio of ${sample}')
 )
 # Track for chromosome names
@@ -171,15 +149,12 @@ add_track(panel_fun = function(gr) {
     grid.text(chr, gp = gpar(fontsize = 10))
 })
 # Track for CNV ratios
+cnv_color = c("Gain" = 'red', "Loss" = 'blue', "Neutral" = 'gray60')
 add_segments_track(
     seg_cnv_gr, 
-    seg_cnv_gr$cnv_log2,
+    seg_cnv_gr$log2_copy_ratio,
     gp = gpar(
-        col = case_when(
-            seg_cnv_gr$cnv_status == 'Gain' ~ "red",
-            seg_cnv_gr$cnv_status == 'Loss' ~ "blue",
-            TRUE ~ "gray60"
-        ),
+        col = cnv_color[as.character(seg_cnv_gr$cnv_status)],
         lwd = 4
     )
 )
@@ -200,12 +175,7 @@ all_samples <- tibble(
 ```
 
 ```{r}
-all_samples_gr <- purrr::pmap(all_samples, function(sample, seg_cnv_pth) read_seg_cnv(seg_cnv_pth)) %>%
-    set_names(nm = all_samples$sample)
-```
-
-```{r}
-num_samples = length(all_samples_gr)
+num_samples = length(all_seg_cnv)
 
 heatmap_col_fun = circlize::colorRamp2(c(-1, -0.1, 0, 0.1, 1), c('blue', 'white', 'white', 'white', 'red'))
 cnv_heatmap_legend = ComplexHeatmap::Legend(
@@ -228,11 +198,11 @@ gtrellis_layout(
         rep(unit(1, "null"), num_samples), 
         unit(4, 'mm')
     ),
-    track_ylab = c('', names(all_samples_gr)[1:num_samples], ''),
+    track_ylab = c('', names(all_seg_cnv)[1:num_samples], ''),
     lab_fontsize = 8,
     # nrow = 2, compact = TRUE,
     xlab = NULL,
-    legend = list(cnv_heatmap_legend@grob, cytoband_legend@grob),
+    legend = list(cnv_heatmap_legend, cytoband_legend),
     title = str_interp('Somatic copy number ratio of all GBM samples'),
     padding = unit(c(2, 10, 2, 2), "mm")
 )
@@ -243,11 +213,11 @@ add_track(panel_fun = function(gr) {
     grid.text(chr, gp = gpar(fontsize = 10))
 })
 for (i in 1:num_samples) {
-    seg_cnv_gr = all_samples_gr[[i]]
+    seg_cnv_gr = all_seg_cnv[[i]]
     # Track for CNV ratios
     add_heatmap_track(
         seg_cnv_gr, 
-        seg_cnv_gr$cnv_log2,
+        seg_cnv_gr$log2_copy_ratio,
         fill = heatmap_col_fun
     )
 }

@@ -43,7 +43,7 @@ rule copy_bicseq2_cnv_all_samples:
 
 rule merge_all_segment_cnvs:
     """Merge all segment CNVs into one GRangesList object."""
-    output: 'processed_data/segment_cnv.rds'
+    output: rds='processed_data/segment_cnv.rds'
     input: seg_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_segments']
     params:
         seg_cnv_pths=lambda wildcards, input: [f'/repo/201902_somatic_wgs_cnv/{pth}' for pth in input['seg_cnvs']]
@@ -64,7 +64,7 @@ rule plot_seg_cnv_one_sample:
     output:
         fig='processed_data/seg_cnv_plot/{sample}.pdf'
     input:
-        seg_cnv=rules.copy_bicseq2_cnv_one_sample.output['seg_cnv']
+        seg_cnv_rds=rules.merge_all_segment_cnvs.output['rds']
     shell:
         # Map the git repo to /repo inside Docker so it can access data from other projects
         """
