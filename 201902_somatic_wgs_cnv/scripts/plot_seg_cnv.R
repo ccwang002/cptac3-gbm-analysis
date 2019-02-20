@@ -17,6 +17,17 @@ hg38_xlims = tibble(
 
 # Read cytoband information
 hg38_cytoband = readRDS('/repo/201901_locate_discovery_data/annotations/cytoband_hg38.rds')
+# Simplify the cytoband to contain only arms and centromere
+hg38_cytoband <- hg38_cytoband %>%
+    filter(chrom %in% seqnames(hg38_canonical_seqinfo)) %>%
+    mutate(simplified_cytoband_type = case_when(
+        cytoband_type == 'acen' ~ 'centromere',
+        startsWith(name, 'p') ~ 'p arm',
+        startsWith(name, 'q') ~ 'q arm',
+        TRUE ~ NA_character_
+    )) %>%
+    group_by(chrom, simplified_cytoband_type) %>%
+    summarize(start = min(start), end = max(end))
 
 # Cytoband legend
 cytoband_legend <- ComplexHeatmap::Legend(
@@ -32,9 +43,9 @@ cytoband_coloring <- function(cytoband_chr) {
     cytoband_chr %>%
         transmute(
             col = case_when(
-                cytoband_type == 'acen' ~ rgb(217, 47, 39, maxColorValue = 255),
-                startsWith(name, 'p') ~ 'gray50',
-                startsWith(name, 'q') ~ 'gray80',
+                simplified_cytoband_type == 'centromere' ~ rgb(217, 47, 39, maxColorValue = 255),
+                simplified_cytoband_type == 'p arm' ~ 'gray50',
+                simplified_cytoband_type == 'q arm'~ 'gray80',
                 TRUE ~ '#FFFFFF'
             )
         ) %>%
