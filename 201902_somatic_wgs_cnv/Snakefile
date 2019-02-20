@@ -37,8 +37,26 @@ rule copy_bicseq2_cnv_one_sample:
 rule copy_bicseq2_cnv_all_samples:
     """Copy the BIC-seq2 CNV output of all samples."""
     input:
-        expand(rules.copy_bicseq2_cnv_one_sample.output['gene_cnv'], sample=CPTAC_SAMPLES),
-        expand(rules.copy_bicseq2_cnv_one_sample.output['seg_cnv'], sample=CPTAC_SAMPLES)
+        all_genes=expand(rules.copy_bicseq2_cnv_one_sample.output['gene_cnv'], sample=CPTAC_SAMPLES),
+        all_segments=expand(rules.copy_bicseq2_cnv_one_sample.output['seg_cnv'], sample=CPTAC_SAMPLES)
+
+
+rule merge_all_segment_cnvs:
+    """Merge all segment CNVs into one GRangesList object."""
+    output: 'processed_data/segment_cnv.rds'
+    input: seg_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_segments']
+    params:
+        seg_cnv_pths=lambda wildcards, input: [f'/repo/201902_somatic_wgs_cnv/{pth}' for pth in input['seg_cnvs']]
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            -e USERID=$(id -u) -e USER=$(id -u -n) \
+            -v $(dirname $PWD):/repo \
+            lbwang/rocker-genome \
+            Rscript /repo/201902_somatic_wgs_cnv/scripts/collect_all_seg_cnvs.R \
+                /repo/201902_somatic_wgs_cnv/{output} \
+                {params.seg_cnv_pths}
+        """
 
 
 rule plot_seg_cnv_one_sample:
@@ -54,8 +72,11 @@ rule plot_seg_cnv_one_sample:
             -e USERID=$(id -u) -e USER=$(id -u -n) \
             -v $(dirname $PWD):/repo \
             lbwang/rocker-genome \
-            Rscript /repo/201902_somatic_wgs_cnv/scripts/plot_seg_cnv.R {wildcards.sample} /repo/201902_somatic_wgs_cnv/{input} /repo/201902_somatic_wgs_cnv/{output} \
-            >/dev/null 2>&1
+            Rscript /repo/201902_somatic_wgs_cnv/scripts/plot_seg_cnv.R \
+                {wildcards.sample} \
+                /repo/201902_somatic_wgs_cnv/{input} \
+                /repo/201902_somatic_wgs_cnv/{output} \
+                >/dev/null 2>&1
         """
 
 
