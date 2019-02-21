@@ -9,11 +9,6 @@ Collect the somatic mutation and germline variant calls provided by WashU and GD
         snakemake-minimal sqlalchemy cyvcf2 \
         ipython flake8
 
-If cyvcf2 cannot be installed, run:
-
-    conda install numpy cython
-    pip install cyvcf2
-
 
 ## Pipeline execution
 Load the somatic mutations by WashU and GDC:
