@@ -102,7 +102,7 @@ add_track(
 )
 ```
 
-## Read all segment CNVs
+## Read segment CNVs of all samples
 ```{r}
 all_seg_cnv = readRDS('../processed_data/segment_cnv.rds')
 ```
@@ -168,29 +168,24 @@ add_track(
 
 ## Plot all samples together
 ```{r}
-all_samples <- tibble(
-    seg_cnv_pth = list.files('../external_data/bicseq2_cnv/segment', full.names = TRUE)
-) %>%
-    mutate(sample = str_sub(seg_cnv_pth, start = -16, end = -8))
-```
+samples = sort(names(all_seg_cnv))
+num_samples = length(samples)
 
-```{r}
-num_samples = length(all_seg_cnv)
 
 heatmap_col_fun = circlize::colorRamp2(c(-1, -0.1, 0, 0.1, 1), c('blue', 'white', 'white', 'white', 'red'))
 cnv_heatmap_legend = ComplexHeatmap::Legend(
     col_fun = heatmap_col_fun, 
     at = c(-1, -0.2, 0, 0.2, 1),
     labels = c('-1', 'Loss (-0.2)', 'Neutral', 'Gain (0.2)', '1'),
-    title = "CN status",
+    title = "CN status (log2)",
     legend_height = unit(2.5, "cm")
 )
 
 # pdf('../processed_data/seg_cnv_all_chroms_all_samples.pdf', width = 20, height = 10)
 pdf('../processed_data/seg_cnv_chr1_chr19_all_samples.pdf', width = 10, height = 10)
 gtrellis_layout(
-    data = hg38_xlims %>% filter(chrom %in% c('chr1', 'chr19')),
     # data = hg38_xlims,
+    data = hg38_xlims %>% filter(chrom %in% c('chr1', 'chr19')),
     n_track = 2 + num_samples,
     track_axis = FALSE,
     track_height = unit.c(
@@ -198,23 +193,23 @@ gtrellis_layout(
         rep(unit(1, "null"), num_samples), 
         unit(4, 'mm')
     ),
-    track_ylab = c('', names(all_seg_cnv)[1:num_samples], ''),
+    track_ylab = c('', samples, ''),
+    ylab_rot = 0,
     lab_fontsize = 8,
-    # nrow = 2, compact = TRUE,
     xlab = NULL,
     legend = list(cnv_heatmap_legend, cytoband_legend),
-    title = str_interp('Somatic copy number ratio of all GBM samples'),
-    padding = unit(c(2, 10, 2, 2), "mm")
+    title = str_interp('Somatic copy number ratio of all available GBM samples')
 )
+
 # Track for chromosome names
 add_track(panel_fun = function(gr) {
     chr = str_sub(get_cell_meta_data("name"), start = 4)
     grid.rect(gp = gpar(fill = "#EEEEEE"))
     grid.text(chr, gp = gpar(fontsize = 10))
 })
-for (i in 1:num_samples) {
-    seg_cnv_gr = all_seg_cnv[[i]]
-    # Track for CNV ratios
+# Track for CNV ratios of each sample
+for (sample in samples) {
+    seg_cnv_gr = all_seg_cnv[[sample]]
     add_heatmap_track(
         seg_cnv_gr, 
         seg_cnv_gr$log2_copy_ratio,
