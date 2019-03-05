@@ -3,12 +3,13 @@ title: "Testing merging Salmon quants"
 output: html_notebook
 ---
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 library(tximport)
 library(ensembldb)
 ```
 
+Read in Ensembl annotation
 ```{r}
 edb <- EnsDb('../external_data/ensembl_ref/EnsDb.Hsapiens.v94.sqlite')
 edb
@@ -27,7 +28,6 @@ tx2gene <- transcripts(
 tx2gene %>% head()
 ```
 
-## Ensembl
 ```{r}
 sample_tbl <- tibble(
     sample=list.files('../processed_data/salmon_quants/gencode')
