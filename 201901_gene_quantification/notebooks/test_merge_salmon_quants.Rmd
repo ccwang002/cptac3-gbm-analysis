@@ -20,11 +20,11 @@ Make a transcript ID to gene ID converter
 ```{r}
 tx2gene <- transcripts(
         edb, 
-        columns=c('gene_id_version', 'tx_id_version', 'gene_name'), 
+        columns=c('gene_id', 'tx_id_version', 'gene_name'), 
         return.type = 'data.frame'
     ) %>%
     as_tibble() %>%
-    dplyr::select(tx_id_version, gene_name)
+    dplyr::select(tx_id_version, gene_id)
 tx2gene %>% head()
 ```
 
@@ -69,11 +69,11 @@ ensembl_txi <- tximport(
 ```
 
 ```{r}
-gencode_txi$abundance[c("GAPDH", "TP53"), 1:5]
+gencode_txi$abundance[1:5, 1:5]
 ```
 
 ```{r}
-ensembl_txi$abundance[c("GAPDH", "TP53"), 1:5]
+ensembl_txi$abundance[1:5, 1:5]
 ```
 
 ```{r}
