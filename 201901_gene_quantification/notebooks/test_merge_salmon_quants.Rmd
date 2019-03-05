@@ -52,6 +52,14 @@ gencode_quant_files <- sample_tbl$gencode_quant_pth %>% set_names(sample_tbl$sam
 ensembl_quant_files <- sample_tbl$ensembl_quant_pth %>% set_names(sample_tbl$sample)
 ```
 
+
+We create two possible tximport objects:
+- raw for DESeq2
+- TPM value which has scaled for the gene length and library size
+
+Ref: <https://github.com/crazyhottommy/RNA-seq-analysis/blob/master/salmon_kalliso_STAR_compare.md>
+
+Raw
 ```{r}
 gencode_txi <- tximport(
     gencode_quant_files,
@@ -68,12 +76,28 @@ ensembl_txi <- tximport(
 )
 ```
 
+
+TPM:
 ```{r}
-gencode_txi$abundance[1:5, 1:5]
+gencode_txi_scaled <- tximport(
+    gencode_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE,
+    countsFromAbundance = "lengthScaledTPM"
+)
+
+ensembl_txi_scaled <- tximport(
+    ensembl_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE,
+    countsFromAbundance = "lengthScaledTPM"
+)
 ```
 
 ```{r}
-ensembl_txi$abundance[1:5, 1:5]
+all(gencode_txi$abundance == gencode_txi_scaled$abundance)
 ```
 
 ```{r}
