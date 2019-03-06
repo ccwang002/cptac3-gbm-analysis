@@ -1,0 +1,68 @@
+import gzip
+import csv
+from collections import namedtuple
+from pathlib import Path
+
+OMIC_UUID_MANIFEST = '../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
+
+# Map GDC seq data to local paths {{{
+# Create a UUID to local file path map
+uuid_to_local_file_pth = {}
+with open(KATMAI_MAP) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        # Keep only WGS UUIDs
+        if row['experimental_strategy'] == 'WGS':
+            uuid_to_local_file_pth[row['UUID']] = Path(row['data_path'])
+
+
+# Link the WXS BAMs and their indices
+sample_to_bam_type_pth = {}
+with open(OMIC_UUID_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        sample = row['case']
+        sample_to_bam_type_pth[sample] = {}
+
+        normal_bam_uuid = row['wgs_blood_normal_BAM']
+        tumor_bam_uuid = row['wgs_tumor_BAM']
+
+        for bam_type, uuid in [
+            ('normal', normal_bam_uuid),
+            ('tumor', tumor_bam_uuid),
+        ]:
+            if uuid == 'NA':
+                continue
+            sample_to_bam_type_pth[sample][bam_type] = uuid_to_local_file_pth[uuid]
+# }}}
+
+
+rule link_gdc_wgs_bam:
+    """Link one WGS BAM locally."""
+    input: manifest=OMIC_UUID_MANIFEST,
+           local_map=KATMAI_MAP
+    output:
+        bam='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam',
+        bai='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam.bai'
+    run:
+
+        bam_src_pth = sample_to_bam_type_pth[sample][bam_type]
+        bai_src_pth = bam_src_pth.with_suffix('.bam.bai')
+
+        bam_dst_pth = Path(output['bam'])
+        bai_dst_pth = Path(output['bai'])
+        bam_dst_pth.symlink_to(bam_src_pth)
+        bai_dst_pth.symlink_to(bai_src_pth)
+
+
+
+rule fast_depth_count:
+    output: 'processed_data/wgs_depth/{sample}.{bam_type}.regions.bed.gz'
+    input: rules.link_gdc_wgs_bam.output['bam']
+    shell:
+        "mosdepth -n --fast-mode --by 500 processed_data/wgs_depth/{sample}.{bam_type} {input}"
+
+
+rule depth_count_samples_of_interest:
+    input: [rules.fast_depth_count.output[0].format(sample=sample, bam_type=bam_type) for sample, bam_type in [('C3L-01834', 'tumor'), ]]
