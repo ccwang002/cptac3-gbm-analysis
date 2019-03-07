@@ -1,0 +1,150 @@
+---
+title: "Plot WGS depth"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+library(gtrellis)
+library(rtracklayer)
+```
+
+
+Load hg38 seqinfo
+```{r}
+hg38_seqinfo = readRDS('../../201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds')
+hg38_canonical_seqinfo = keepStandardChromosomes(hg38_seqinfo)
+
+hg38_xlims = tibble(
+    chrom = seqnames(hg38_canonical_seqinfo),
+    start = 0,  # Same as gtrellis default
+    end = seqlengths(hg38_canonical_seqinfo)
+) %>%
+    filter(chrom != 'chrM')
+```
+
+Load cytoband info
+```{r}
+hg38_cytoband = readRDS('../../201901_locate_discovery_data/annotations/cytoband_hg38.rds')
+
+# simplify the cytoband
+hg38_cytoband <- hg38_cytoband %>%
+    filter(chrom %in% seqnames(hg38_canonical_seqinfo)) %>%
+    mutate(simplified_cytoband_type = case_when(
+        cytoband_type == 'acen' ~ 'centromere',
+        startsWith(name, 'p') ~ 'p arm',
+        startsWith(name, 'q') ~ 'q arm',
+        TRUE ~ NA_character_
+    )) %>%
+    group_by(chrom, simplified_cytoband_type) %>%
+    summarize(start = min(start), end = max(end)) 
+```
+
+Customize the cytoband display. showing only the p/q arm and the centrometer location
+```{r, fig.width=8, fig.height=3}
+cytoband_legend <- ComplexHeatmap::Legend(
+    at = c("p arm", "centromere", "q arm"), 
+    title = "Cytoband type", 
+    type = "grid", 
+    legend_gp = gpar(fille = c("gray50", "red", "gray80")),
+    background = 'transparent'
+)
+
+cytoband_coloring <- function(cytoband_chr) {
+    cytoband_chr %>% 
+        transmute(
+            col = case_when(
+                simplified_cytoband_type == 'centromere' ~ rgb(217, 47, 39, maxColorValue = 255),
+                simplified_cytoband_type == 'p arm' ~ 'gray50',
+                simplified_cytoband_type == 'q arm'~ 'gray80',
+                TRUE ~ '#FFFFFF'
+            )
+        ) %>% 
+        pull(col)
+}
+
+cytoband_panel_drawer <- function(gr) {
+    cytoband_chr = gr
+    grid.rect(
+        cytoband_chr$start, unit(0, "npc"),
+        width = cytoband_chr$end - cytoband_chr$start, height = unit(1, "npc"),
+        default.units = "native", hjust = 0, vjust = 0,
+        gp = gpar(
+            fill = cytoband_coloring(cytoband_chr),
+            col = 'transparent'
+        ))
+    # Plot the block
+    grid.rect(
+        min(cytoband_chr$start), unit(0, "npc"),
+        width = max(cytoband_chr$end) - min(cytoband_chr$start), height = unit(1, "npc"),
+        default.units = "native", hjust = 0, vjust = 0,
+        gp = gpar(fill = "transparent")
+    )
+}
+
+gtrellis_layout(
+    # species = 'hg38', 
+    data = hg38_xlims,
+    nrow = 2, compact = TRUE,
+    n_track = 2, 
+    track_axis = c(FALSE),
+    track_height = unit.c(1.5 * grobHeight(textGrob("1XY")), unit(1, 'null')),
+    legend = list(cytoband_legend@grob)
+)
+# Track for chromosome names
+add_track(panel_fun = function(gr) {
+    chr = str_sub(get_cell_meta_data("name"), start = 4)
+    grid.rect(gp = gpar(fill = "#EEEEEE"))
+    grid.text(chr, gp = gpar(fontsize = 10))
+})
+add_track(
+    hg38_cytoband, 
+    panel_fun = cytoband_panel_drawer
+)
+```
+
+
+```{r}
+seq_gr <- import.bedGraph('../processed_data/wgs_depth/C3L-01834.tumor.regions.bed.gz', genome = hg38_seqinfo)
+
+seq_gr.clamp <- seq_gr
+seq_gr.clamp$score[seq_gr.clamp$score >= 60] <- 60
+```
+
+```{r, fig.width=10, fig.height=5}
+gtrellis_layout(
+    # species = 'hg38', 
+    data = hg38_xlims,
+    n_track = 3,
+    track_axis = c(FALSE, TRUE, FALSE),
+    track_height = unit.c(1.5 * grobHeight(textGrob("1XY")), unit(1, "null"), unit(4, 'mm')),
+    nrow = 3, compact = TRUE,
+    xlab = NULL,
+    track_ylab = c('', 'WGS depth', ''),
+    track_ylim = c(0, 60),
+    legend = list(cytoband_legend)
+    # title = str_interp('Somatic copy number ratio of ${sample}')
+)
+# Track for chromosome names
+add_track(panel_fun = function(gr) {
+    chr = str_sub(get_cell_meta_data("name"), start = 4)
+    grid.rect(gp = gpar(fill = "#EEEEEE"))
+    grid.text(chr, gp = gpar(fontsize = 10))
+})
+# Track for CNV ratios
+cnv_color = c("Gain" = 'red', "Loss" = 'blue', "Neutral" = 'gray60')
+add_segments_track(
+    seq_gr.clamp, 
+    seq_gr.clamp$score,
+    gp = gpar(
+        col = "black",
+        # col = cnv_color[as.character(seg_cnv_gr$cnv_status)],
+        lwd = 4
+    )
+)
+# Track for cytoband
+add_track(
+    hg38_cytoband, 
+    panel_fun = cytoband_panel_drawer
+)
+```
