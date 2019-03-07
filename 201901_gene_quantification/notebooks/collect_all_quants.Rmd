@@ -1,0 +1,197 @@
+---
+title: "Testing merging Salmon quants"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+library(tximport)
+library(SummarizedExperiment)
+```
+
+Read in annotation
+```{r}
+# Ensembl annotation
+edb <- ensembldb::EnsDb('../../201901_locate_discovery_data/annotations/EnsDb.Hsapiens.v94.sqlite')
+# GDC genome information
+gdc_seqinfo <- readRDS('../../201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds')
+chrom_map_tbl <- read_tsv('../../201901_locate_discovery_data/annotations/ucscToEnsembl.txt.gz', 
+                          col_names = c('ucsc_chrom', 'ens_chrom'))
+# Chromosome name mapping from Ensembl to UCSC
+chrom_ens_to_ucsc <- chrom_map_tbl$ucsc_chrom %>% set_names(nm = chrom_map_tbl$ens_chrom)
+```
+
+
+Make a transcript ID to gene ID converter
+```{r}
+tx2gene <- ensembldb::transcripts(
+        edb, 
+        columns=c('gene_id', 'tx_id_version', 'gene_name'), 
+        return.type = 'data.frame'
+    ) %>%
+    as_tibble() %>%
+    select(tx_id_version, gene_id)
+tx2gene %>% head()
+```
+
+```{r}
+sample_tbl <- tibble(
+    sample=list.files('../processed_data/salmon_quants/gencode')
+)
+
+nrow(sample_tbl)
+```
+
+
+```{r}
+sample_tbl <- sample_tbl %>%
+    mutate(
+        gencode_quant_pth = file.path('../processed_data/salmon_quants/gencode', sample, 'quant.sf'),
+        ensembl_quant_pth = file.path('../processed_data/salmon_quants/ensembl', sample, 'quant.sf')
+    )
+
+sample_tbl %>% head()
+```
+
+```{r}
+gencode_quant_files <- sample_tbl$gencode_quant_pth %>% set_names(sample_tbl$sample)
+ensembl_quant_files <- sample_tbl$ensembl_quant_pth %>% set_names(sample_tbl$sample)
+```
+
+
+We create two possible tximport objects:
+- raw for DESeq2
+- TPM value which has scaled for the gene length and library size
+
+Ref: <https://github.com/crazyhottommy/RNA-seq-analysis/blob/master/salmon_kalliso_STAR_compare.md>
+
+Raw tximport object
+```{r}
+gencode_txi <- tximport(
+    gencode_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE
+)
+
+ensembl_txi <- tximport(
+    ensembl_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE
+)
+```
+
+
+Tximport but using normalized counts (required for some R packages)
+```{r}
+gencode_txi_scaled <- tximport(
+    gencode_quant_files,
+    type = 'salmon',
+    tx2gene = tx2gene,
+    ignoreTxVersion = FALSE,
+    countsFromAbundance = "lengthScaledTPM"
+)
+```
+
+Since the `txi$abundance` stores the TPM values and it was directly from the Salmon output, both txi objects should have identical `abundance`
+```{r}
+all(gencode_txi$abundance == gencode_txi_scaled$abundance)
+```
+
+
+### Annotation the Ensembl gene ID with symbol name
+```{r}
+edb_genes <- ensembldb::genes(
+    edb,
+    filter = ~ gene_biotype != 'LRG_gene',
+    columns = c(
+        "seq_name", "gene_seq_start", "gene_seq_end", "seq_strand", "gene_id", 
+        "symbol", "gene_biotype", "gene_id_version"),
+    return.type = "data.frame"
+) %>% 
+    as_tibble() %>%
+    # Convert the chromosome names to be UCSC
+    mutate(seq_name = chrom_ens_to_ucsc[seq_name])
+```
+
+Use gene ID to add the chromosome ranges:
+```{r}
+gencode_txi_gr <- tibble(gene_id = rownames(gencode_txi$abundance)) %>%
+    left_join(edb_genes, by = "gene_id") %>%
+    # Convert the strand representation
+    mutate(
+        seq_strand = case_when(
+            seq_strand == -1 ~ '-',
+            seq_strand == 1 ~ '+',
+            TRUE ~ '*'
+        )
+    ) %>%
+    column_to_rownames(var = 'gene_id') %>%
+    makeGRangesFromDataFrame(
+        seqnames.field = 'seq_name',
+        start.field = 'gene_seq_start',
+        end.field = 'gene_seq_end',
+        strand.field = 'seq_strand',
+        keep.extra.columns = TRUE,
+        seqinfo = gdc_seqinfo
+    )
+
+ensembl_txi_gr <- tibble(gene_id = rownames(ensembl_txi$abundance)) %>%
+    left_join(edb_genes, by = "gene_id") %>%
+    # Convert the strand representation
+    mutate(
+        seq_strand = case_when(
+            seq_strand == -1 ~ '-',
+            seq_strand == 1 ~ '+',
+            TRUE ~ '*'
+        )
+    ) %>%
+    column_to_rownames(var = 'gene_id') %>%
+    makeGRangesFromDataFrame(
+        seqnames.field = 'seq_name',
+        start.field = 'gene_seq_start',
+        end.field = 'gene_seq_end',
+        strand.field = 'seq_strand',
+        keep.extra.columns = TRUE,
+        seqinfo = gdc_seqinfo
+    )
+```
+
+Make the SummarizedExperiment object
+```{r}
+se_metadata <- list(
+    cohort = 'CPTAC3 GBM discovery cohort (incomplete: 43 tumors and 10 normals)',
+    description = 'Gene level TPM using Salmon',
+    pipeline = 'https://github.com/ding-lab/cptac3-gbm-analysis/tree/master/201901_gene_quantification',
+    annotation = '',
+    contact = 'Liang-Bo Wang <liang-bo.wang@wustl.edu>'
+)
+
+se_metadata$annotation <- 'GENCODE v29 basic transcripts'
+gencode_tpm_se <- SummarizedExperiment(
+    rowRanges = gencode_txi_gr,
+    assays = list(
+        gene_tpm = gencode_txi$abundance
+    ),
+    metadata = se_metadata
+)
+
+se_metadata$annotation <- 'All Ensembl v94 transcripts'
+ensembl_tpm_se <- SummarizedExperiment(
+    rowRanges = ensembl_txi_gr,
+    assays = list(
+        gene_tpm = ensembl_txi$abundance
+    ),
+    metadata = se_metadata
+)
+```
+
+
+```{r}
+saveRDS(gencode_txi, '../processed_data/cptac3_gbm_gene_level_tximport.gencode.rds')
+saveRDS(ensembl_txi, '../processed_data/cptac3_gbm_gene_level_tximport.ensembl.rds')
+saveRDS(gencode_tpm_se, '../processed_data/cptac3_gbm_gene_level_tpm.gencode.rds')
+saveRDS(ensembl_tpm_se, '../processed_data/cptac3_gbm_gene_level_tpm.ensembl.rds')
+```
+

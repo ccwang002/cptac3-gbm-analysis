@@ -310,5 +310,3 @@ rule salmon_quant_one_sample:
 rule salmon_quant_all_samples:
     """Generate the gene quantification by Salmon of all samples and all annotation sources."""
     input: expand(rules.salmon_quant_one_sample.output[0], annotation_src=ALL_ANNOTATIONS, sample=ALL_SAMPLES)
-
-# vim:set foldmethod=marker:

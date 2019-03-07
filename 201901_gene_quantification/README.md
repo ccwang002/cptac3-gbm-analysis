@@ -45,11 +45,12 @@ Run the gene quantification of all samples using all annotation sources by:
 ![](figures/ruledag.png)
 
 
+
 ## Notebooks
 Notebooks can be run using the Docker image [lbwang/rocker-transcriptome].
 
 - `gtex_rnaseq_reads_qc.Rmd`: Quality check of the extracted GTEx RNA-seq reads from their original BAMs.
 - `salmon_qc.Rmd`: Quality check of mapped vs total reads of the samples.
-- `test_merge_salmon_quants.Rmd`: Combine the salmon quantification output of all samples together using `tximport`.
+- `collect_all_quants.Rmd`: Generate R objects collecting all quant files for downstream analysis.
 
 [lbwang/rocker-transcriptome]: https://hub.docker.com/r/lbwang/rocker-transcriptome
