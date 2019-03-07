@@ -57,12 +57,18 @@ rule link_gdc_wgs_bam:
 
 
 
-rule fast_depth_count:
+rule calculate_wgs_bam_depth:
+    """Calculate the WGS BAM sequencing depth."""
     output: 'processed_data/wgs_depth/{sample}.{bam_type}.regions.bed.gz'
     input: rules.link_gdc_wgs_bam.output['bam']
     shell:
-        "mosdepth -n --fast-mode --by 500 processed_data/wgs_depth/{sample}.{bam_type} {input}"
+        "mosdepth "
+        "-n --fast-mode "
+        "--by 500 "
+        "processed_data/wgs_depth/{wildcards.sample}.{wildcards.bam_type} "
+        "{input}"
 
 
-rule depth_count_samples_of_interest:
+rule wgs_bam_depth_samples_of_interest:
+    """Caculate the WGS BAM depth of all samples of interest."""
     input: [rules.fast_depth_count.output[0].format(sample=sample, bam_type=bam_type) for sample, bam_type in [('C3L-01834', 'tumor'), ]]
