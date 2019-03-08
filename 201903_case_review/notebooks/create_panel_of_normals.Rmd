@@ -1,0 +1,59 @@
+---
+title: "Create Panel of Normals"
+output: html_notebook
+---
+```{r}
+library(tidyverse)
+```
+
+
+Read list of GBM discovery samples
+```{r}
+discovery_samples <- read_lines('../../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list')
+discovery_samples_cptac_only <- str_subset(discovery_samples, '^C3[NL]-')
+discovery_samples_gtex_only <- str_subset(discovery_samples, '^PT-')
+```
+
+Read the GDC UUIDs 
+```{r}
+gdc_omics_uuid_tbl <- read_tsv('../../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv')
+```
+
+Read Katmai data availability
+```{r}
+katmai_normal_wgs_bam <- read_tsv('../../matt_catalog/katmai.BamMap.dat') %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(experimental_strategy == 'WGS', 
+           sample_type == 'blood_normal',
+           reference == 'hg38')
+```
+
+Read CPTAC demographics
+```{r}
+cpatc_demograph_tbl <- read_tsv('../../matt_catalog/CPTAC3.Demographics.dat') %>%
+    rename(case = '# case') %>%
+    filter(case %in% katmai_normal_wgs_bam$case)
+
+gbm_demograph_tbl <- cpatc_demograph_tbl %>%
+    filter(case %in% gdc_omics_uuid_tbl$case)
+
+cpatc_demograph_tbl %>% nrow()
+gbm_demograph_tbl %>% nrow()
+```
+
+```{r}
+cpatc_demograph_tbl %>%
+    count(disease, gender)
+```
+
+```{r}
+gbm_demograph_tbl %>%
+    count(gender)
+```
+
+
+### Export GBM normal BAM paths
+```{r}
+pon_bam_pth_tbl <- katmai_normal_wgs_bam %>%
+    filter(case %in% gdc_omics_uuid_tbl$case)
+```
