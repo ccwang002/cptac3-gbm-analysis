@@ -84,22 +84,10 @@ katmai_rna_fqs <- local_data_location_tbl %>%
 katmai_rna_fqs %>% nrow()
 ```
 
-
-### Compare with the previous 60 samples
+List new RNA-seq FASTQs that can be downloaded.
 ```{r}
-samples_already_on_gdc <- read_tsv(
-    '../../matt_catalog/CPTAC3.cases.dat',
-    col_names = c('case_id', 'cancer_type')
-) %>% 
-    filter(cancer_type == 'GBM', case_id %in% discovery_samples_cptac_only) %>% 
-    pull(case_id) %>% 
-    sort()
-
-prev_60_genomic_samples <- read_lines('../../201811_locate_gdc_data/genomic_samples.60_cases.list')
+gdc_omics_uuid_tbl %>% 
+    filter(!is.na(rna_tumor_R1_fastq), !is.na(rna_tumor_R2_fastq)) %>%
+    pull(case) %>%
+    setdiff(katmai_rna_fqs$case)
 ```
-
-List all the samples that we can download:
-```{r}
-setdiff(samples_already_on_gdc, prev_60_genomic_samples)
-```
-

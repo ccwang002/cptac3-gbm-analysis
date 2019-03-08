@@ -25,7 +25,8 @@ prev_genomic_samples <- read_lines('../../201811_locate_gdc_data/genomic_samples
 ```{r}
 gdc_samples <- read_tsv(
     '../../matt_catalog/CPTAC3.cases.dat',
-    col_names = c('case_id', 'cancer_type')
+    col_names = c('case_id', 'cancer_type', 'cohort', 'analysis_batch'),
+    col_types = cols_only(case_id=col_character(), cancer_type=col_character())
 ) %>% 
     filter(cancer_type == 'GBM') %>% 
     pull(case_id) %>% 
@@ -57,7 +58,7 @@ length(intersect(discovery_samples_cptac_only, prev_genomic_samples))
 
 ## Discovery from the full CPTAC3 sequencing data
 ```{r}
-gbm_seq_data <- read_tsv('../../matt_catalog/CPTAC3.SR.dat') %>%
+gbm_seq_data <- read_tsv('../../matt_catalog/CPTAC3.AR.dat') %>%
     rename(data_name = `# sample_name`) %>%
     filter(case %in% discovery_samples_cptac_only) 
 ```
@@ -81,7 +82,7 @@ wgs_uuid_tbl <- gbm_seq_data %>%
     filter(experimental_strategy == 'WGS' & reference == 'hg38') %>% 
     select(case, sample_type, UUID) %>%
     spread(sample_type, UUID) %>%
-    rename(wgs_blood_normal_BAM = blood_normal, wgs_tumor_BAM = tumor)
+    rename(wgs_blood_normal_bam = blood_normal, wgs_tumor_bam = tumor)
 
 wgs_uuid_tbl %>% nrow()
 ```
@@ -90,13 +91,25 @@ wgs_uuid_tbl %>% nrow()
 ### RNA-seq
 ```{r}
 rna_uuid_tbl <- gbm_seq_data %>% 
-    filter(experimental_strategy == 'RNA-Seq') %>%
+    filter(experimental_strategy == 'RNA-Seq', data_format == 'FASTQ') %>%
     mutate(strand = str_match(data_name, '\\.RNA-Seq\\.(R[12])\\.\\w$')[, 2]) %>% 
     mutate(key = str_c('rna', sample_type, strand, 'fastq', sep = '_')) %>%
     select(case, key, UUID) %>%
     spread(key = key, value = UUID)
 
 rna_uuid_tbl %>% nrow()
+```
+
+RNA-seq BAM as well
+```{r}
+rna_bam_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'RNA-Seq', 
+           data_format == 'BAM',
+           endsWith(filename, 'genomic.gdc_realn.bam')) %>%
+    select(case, sample_type, UUID) %>%
+    spread(key = sample_type, value = UUID) %>%
+    rename(rna_tumor_bam = tumor)
+rna_bam_uuid_tbl %>% nrow()
 ```
 
 
@@ -122,6 +135,7 @@ gbm_omics_uuid_tbl <- reduce(
         wxs_uuid_tbl, 
         wgs_uuid_tbl, 
         rna_uuid_tbl, 
+        rna_bam_uuid_tbl,
         mirna_uuid_tbl
     ),
     function(x, y) {full_join(x, y, by = 'case')}
@@ -132,6 +146,6 @@ gbm_omics_uuid_tbl %>% head()
 ```
 
 ```{r}
-write_tsv(gbm_omics_uuid_tbl, '../tracked_results/CPTAC3_GBM_discovery_GDC_omics_UUIDs.tsv')
+write_tsv(gbm_omics_uuid_tbl, '../tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv')
 ```
 
