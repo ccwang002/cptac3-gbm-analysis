@@ -35,6 +35,21 @@ Review some cases that may not be glioblastoma.
 
 
 
+## Matt's GDC catalog
+`matt_catalog` is the [GDC data catelog][matt-catelog-github] maintained by
+Matt in another GitHub repository. To update the catelog to the latest version,
+run git subtree at the root folder of this git repository:
+
+```
+git subtree pull --squash \
+    --prefix matt_catalog \
+    git@github.com:ding-lab/CPTAC3.catalog.git master
+```
+
+[matt-catelog-github]: https://github.com/ding-lab/CPTAC3.catalog
+
+
+
 ## Proteomic QC
 ### `201811_locate_gdc_data` on denali
 📍 *Use `201901_locate_discovery_data` instead*<br>

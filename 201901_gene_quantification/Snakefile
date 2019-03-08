@@ -7,7 +7,7 @@ OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM
 GTEX_MANIFEST = 'CPTAC_matched_GTEx_BAMs_manifest.txt'
 
 # Path to the mapping of UUID to file location on katmai
-KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
+KATMAI_MAP = '../matt_catalog/katmai.BamMap.dat'
 ENSEMBL_VER = 94
 GENCODE_VER = 29
 SALMON_INDEX_FOLDER_FMT = 'processed_data/tx_ref/{annotation_src}_salmon_index'

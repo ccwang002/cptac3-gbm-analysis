@@ -4,7 +4,7 @@ from collections import namedtuple
 from pathlib import Path
 
 OMIC_UUID_MANIFEST = '../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
-KATMAI_MAP = '../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'
+KATMAI_MAP = '../matt_catalog/katmai.BamMap.dat'
 
 # Map GDC seq data to local paths {{{
 # Create a UUID to local file path map

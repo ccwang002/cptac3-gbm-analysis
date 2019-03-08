@@ -24,7 +24,7 @@ samples_like_gtex_normals <- c('C3L-01839', 'C3N-01370', 'C3N-01817', 'C3N-01850
 ## Genomic samples on GDC
 ```{r}
 all_gdc_samples <- read_tsv(
-    '../matt_catelog/CPTAC3.cases.dat',
+    '../../matt_catalog/CPTAC3.cases.dat',
     col_names = c('case_id', 'cancer_type')
 )
 genomic_samples <- all_gdc_samples %>% filter(cancer_type == 'GBM') %>% pull(case_id) %>% sort()
@@ -46,7 +46,7 @@ str_interp('GBM samples shared by both genomic and proteomic: ${length(shared_sa
 
 ## Discovery from the full CPTAC3 sequencing data
 ```{r}
-full_seq_data <- read_tsv('../matt_catelog/CPTAC3.SR.dat') %>%
+full_seq_data <- read_tsv('../../matt_catalog/CPTAC3.SR.dat') %>%
     rename(data_name = `# sample_name`) 
 
 gbm_seq_data <- full_seq_data%>%
@@ -123,7 +123,7 @@ write_tsv(gbm_omics_uuid_tbl, '../tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv
 ## Local location of the genomic data
 ```{r}
 local_data_location_tbl <- map_dfr(
-    c('../matt_catelog/MGI.BamMap.dat', '../matt_catelog/katmai.BamMap.dat'),
+    c('../../matt_catalog/MGI.BamMap.dat', '../../matt_catalog/katmai.BamMap.dat'),
     function(x) {
         read_tsv(
             x, 

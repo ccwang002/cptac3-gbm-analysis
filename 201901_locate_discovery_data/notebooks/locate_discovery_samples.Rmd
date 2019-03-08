@@ -24,7 +24,7 @@ prev_genomic_samples <- read_lines('../../201811_locate_gdc_data/genomic_samples
 ### The GDC data availability
 ```{r}
 gdc_samples <- read_tsv(
-    '../../201811_locate_gdc_data/matt_catelog/CPTAC3.cases.dat',
+    '../../matt_catalog/CPTAC3.cases.dat',
     col_names = c('case_id', 'cancer_type')
 ) %>% 
     filter(cancer_type == 'GBM') %>% 
@@ -57,7 +57,7 @@ length(intersect(discovery_samples_cptac_only, prev_genomic_samples))
 
 ## Discovery from the full CPTAC3 sequencing data
 ```{r}
-gbm_seq_data <- read_tsv('../../201811_locate_gdc_data/matt_catelog/CPTAC3.SR.dat') %>%
+gbm_seq_data <- read_tsv('../../matt_catalog/CPTAC3.SR.dat') %>%
     rename(data_name = `# sample_name`) %>%
     filter(case %in% discovery_samples_cptac_only) 
 ```

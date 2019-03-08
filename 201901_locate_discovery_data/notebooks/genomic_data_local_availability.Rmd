@@ -22,8 +22,8 @@ gdc_omics_uuid_tbl <- read_tsv('../tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.ts
 
 ```{r}
 local_data_location_tbl <- map_dfr(
-    c('../../201811_locate_gdc_data/matt_catelog/MGI.BamMap.dat', 
-      '../../201811_locate_gdc_data/matt_catelog/katmai.BamMap.dat'),
+    c('../../matt_catalog/MGI.BamMap.dat', 
+      '../../matt_catalog/katmai.BamMap.dat'),
     function(x) {
         read_tsv(
             x, 
@@ -88,7 +88,7 @@ katmai_rna_fqs %>% nrow()
 ### Compare with the previous 60 samples
 ```{r}
 samples_already_on_gdc <- read_tsv(
-    '../../201811_locate_gdc_data/matt_catelog/CPTAC3.cases.dat',
+    '../../matt_catalog/CPTAC3.cases.dat',
     col_names = c('case_id', 'cancer_type')
 ) %>% 
     filter(cancer_type == 'GBM', case_id %in% discovery_samples_cptac_only) %>% 
