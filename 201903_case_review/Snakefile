@@ -3,8 +3,12 @@ import csv
 from collections import namedtuple
 from pathlib import Path
 
-OMIC_UUID_MANIFEST = '../201811_locate_gdc_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
+OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
 KATMAI_MAP = '../matt_catalog/katmai.BamMap.dat'
+GDC_REF_FA_PTH = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+GATK_DOCKER_IMG = 'broadinstitute/gatk:4.1.0.0'
+# Path to the folder of Snakefile inside the Docker image
+PROJ_FOLDER_IN_DOCKER = '/repo/201903_case_review'
 
 # Map GDC seq data to local paths {{{
 # Create a UUID to local file path map
@@ -25,8 +29,8 @@ with open(OMIC_UUID_MANIFEST) as f:
         sample = row['case']
         sample_to_bam_type_pth[sample] = {}
 
-        normal_bam_uuid = row['wgs_blood_normal_BAM']
-        tumor_bam_uuid = row['wgs_tumor_BAM']
+        normal_bam_uuid = row['wgs_blood_normal_bam']
+        tumor_bam_uuid = row['wgs_tumor_bam']
 
         for bam_type, uuid in [
             ('normal', normal_bam_uuid),
@@ -35,6 +39,14 @@ with open(OMIC_UUID_MANIFEST) as f:
             if uuid == 'NA':
                 continue
             sample_to_bam_type_pth[sample][bam_type] = uuid_to_local_file_pth[uuid]
+
+
+# Use all GBM normals in the discovery cohort as PoN
+PON_SAMPLES = set()
+for sample, bam_map in sample_to_bam_type_pth.items():
+    if 'normal' in bam_map:
+        PON_SAMPLES.add(sample)
+
 # }}}
 
 
@@ -46,8 +58,7 @@ rule link_gdc_wgs_bam:
         bam='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam',
         bai='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam.bai'
     run:
-
-        bam_src_pth = sample_to_bam_type_pth[sample][bam_type]
+        bam_src_pth = sample_to_bam_type_pth[wildcards.sample][wildcards.bam_type]
         bai_src_pth = bam_src_pth.with_suffix('.bam.bai')
 
         bam_dst_pth = Path(output['bam'])
@@ -56,7 +67,7 @@ rule link_gdc_wgs_bam:
         bai_dst_pth.symlink_to(bai_src_pth)
 
 
-
+# Calculate the read depth {{{
 rule calculate_wgs_bam_depth:
     """Calculate the WGS BAM sequencing depth."""
     output: 'processed_data/wgs_depth/{sample}.{bam_type}.regions.bed.gz'
@@ -71,4 +82,85 @@ rule calculate_wgs_bam_depth:
 
 rule wgs_bam_depth_samples_of_interest:
     """Caculate the WGS BAM depth of all samples of interest."""
-    input: [rules.fast_depth_count.output[0].format(sample=sample, bam_type=bam_type) for sample, bam_type in [('C3L-01834', 'tumor'), ]]
+    input: [rules.calculate_wgs_bam_depth.output[0].format(sample=sample, bam_type=bam_type) \
+            for sample, bam_type in [('C3L-01834', 'normal'), ]]
+# }}}
+
+
+# GATK4 somatic WGS CNV (PoN) {{{
+rule gatk_preprocessintervals:
+    """GATK PreprocessIntervals for WGS."""
+    input: ref_fa=GDC_REF_FA_PTH,
+    output: 'processed_data/gatk4_somatic_cnv/interval_lists/preprocessed_intervals.interval_list'
+    log: 'logs/gatk_cnv/gatk_preprocessedintervals.log'
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g)    \
+            -v /diskmnt:/diskmnt                   \
+            -v $(dirname $PWD):/repo               \
+            {GATK_DOCKER_IMG}                      \
+            gatk PreprocessIntervals \
+                -R {input.ref_fa} \
+                --bin-length 1000 \
+                --padding 0 \
+                -interval-merging-rule OVERLAPPING_ONLY \
+                -O {PROJ_FOLDER_IN_DOCKER}/{output} \
+            2>{log} 1>&2
+        """
+
+
+rule filter_gatk_cnv_intervals:
+    """Filter the CNV intervals to include only the canonoical autosomal chromosomes."""
+    input: rules.gatk_preprocessintervals.output[0]
+    output: 'processed_data/gatk4_somatic_cnv/interval_lists/preprocessed_intervals.canonical_autosomal_chroms.interval_list'
+    run:
+        # Take only chr1, ..., chr22
+        accepted_chroms = set(f'chr{i}' for i in range(1, 23))
+        with open(input[0]) as f, open(output[0], 'w') as outf:
+            for line in f:
+                # Write out all the headers
+                if line.startswith('@'):
+                    outf.write(line)
+                else:
+                    chrom = line.split('\t', 1)[0]
+                    if chrom in accepted_chroms:
+                        outf.write(line)
+
+
+rule gatk_collectreadcounts:
+    """Run GATK CollectReadCounts on one BAM."""
+    output:
+        hdf5='processed_data/gatk4_somatic_cnv/readcounts_hdf5/{bam_type}/{sample}.counts.hdf5'
+    input:
+        bam='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam',
+        bai='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam.bai',
+        interval_list=rules.filter_gatk_cnv_intervals.output[0]
+    log: 'logs/gatk_cnv/collectreadcounts/{bam_type}/{sample}.log'
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            --group-add $(grep cptac /etc/group | cut -d: -f3) \
+            -v /diskmnt:/diskmnt                \
+            -v $(dirname $PWD):/repo            \
+            {GATK_DOCKER_IMG}                   \
+            gatk CollectReadCounts \
+                -I {PROJ_FOLDER_IN_DOCKER}/{input.bam} \
+                -L {PROJ_FOLDER_IN_DOCKER}/{input.interval_list} \
+                --interval-merging-rule OVERLAPPING_ONLY \
+                -O {PROJ_FOLDER_IN_DOCKER}/{output.hdf5} \
+            2>{log} 1>&2
+        """
+
+
+rule gatk_pon_readcounts:
+    """Generate readcounts HDF5 of all PoN samples."""
+    input: expand(rules.gatk_collectreadcounts.output[0], \
+                  bam_type='normal', sample=PON_SAMPLES)
+
+
+rule gatk_tumor_readcounts:
+    """Generate readcounts HDF5 of all tumor samples."""
+    input: expand(rules.gatk_collectreadcounts.output[0], \
+                  bam_type='tumor', sample=['C3L-01834'])
+
+# }}}
