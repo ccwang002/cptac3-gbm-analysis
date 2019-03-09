@@ -40,14 +40,16 @@ with open(OMIC_UUID_MANIFEST) as f:
                 continue
             sample_to_bam_type_pth[sample][bam_type] = uuid_to_local_file_pth[uuid]
 
+# }}}
 
 # Use all GBM normals in the discovery cohort as PoN
 PON_SAMPLES = set()
+TUMOR_SAMPLES = set()
 for sample, bam_map in sample_to_bam_type_pth.items():
     if 'normal' in bam_map:
         PON_SAMPLES.add(sample)
-
-# }}}
+    if 'tumor' in bam_map:
+        TUMOR_SAMPLES.add(sample)
 
 
 rule link_gdc_wgs_bam:
@@ -154,13 +156,60 @@ rule gatk_collectreadcounts:
 
 rule gatk_pon_readcounts:
     """Generate readcounts HDF5 of all PoN samples."""
-    input: expand(rules.gatk_collectreadcounts.output[0], \
+    input: expand(rules.gatk_collectreadcounts.output['hdf5'], \
                   bam_type='normal', sample=PON_SAMPLES)
 
 
 rule gatk_tumor_readcounts:
     """Generate readcounts HDF5 of all tumor samples."""
-    input: expand(rules.gatk_collectreadcounts.output[0], \
-                  bam_type='tumor', sample=['C3L-01834'])
+    input: expand(rules.gatk_collectreadcounts.output['hdf5'], \
+                  bam_type='tumor', sample=TUMOR_SAMPLES)
 
+
+
+rule gatk_annotateintervals:
+    """Run GATK AnnotateIntervals."""
+    input:
+        ref_fa=GDC_REF_FA_PTH,
+        interval_list=rules.filter_gatk_cnv_intervals.output[0]
+    output: 'processed_data/gatk4_somatic_cnv/annotated_intervals/annotated_intervals.canonical_autosomal_chroms.tsv'
+    log: 'logs/gatk_cnv/gatk_annotateintervals.log'
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g)    \
+            -v /diskmnt:/diskmnt                   \
+            -v $(dirname $PWD):/repo               \
+            {GATK_DOCKER_IMG}                      \
+            gatk AnnotateIntervals \
+                -R {input.ref_fa} \
+                -L {PROJ_FOLDER_IN_DOCKER}/{input.interval_list} \
+                --interval-merging-rule OVERLAPPING_ONLY \
+                -O {PROJ_FOLDER_IN_DOCKER}/{output} \
+            2>{log} 1>&2
+        """
+
+
+rule gatk_createreadcountpon:
+    """Run GATK CreateReadCountPanelOfNormals on all PoN normals."""
+    output: 'processed_data/gatk4_somatic_cnv/cnv.pon.hdf5'
+    input:
+        pon_readcounts=rules.gatk_pon_readcounts.input,
+        annotated_intervals=rules.gatk_annotateintervals.output[0]
+    params:
+        pon_pth_args=lambda wildcards, input: \
+            [f'-I {PROJ_FOLDER_IN_DOCKER}/{pth}' for pth in input['pon_readcounts']]
+    log: 'logs/gatk_cnv/create_pon_hdf5.log'
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g)    \
+            -v /diskmnt:/diskmnt                   \
+            -v $(dirname $PWD):/repo               \
+            {GATK_DOCKER_IMG}                      \
+            gatk CreateReadCountPanelOfNormals \
+                --java-options "-Xmx16000m" \
+                {params.pon_pth_args} \
+                --annotated-intervals {PROJ_FOLDER_IN_DOCKER}/{input.annotated_intervals} \
+                -O {PROJ_FOLDER_IN_DOCKER}/{output} \
+            2>{log} 1>&2
+        """
 # }}}
