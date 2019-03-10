@@ -200,13 +200,17 @@ rule gatk_createreadcountpon:
             [f'-I {PROJ_FOLDER_IN_DOCKER}/{pth}' for pth in input['pon_readcounts']]
     log: 'logs/gatk_cnv/create_pon_hdf5.log'
     shell:
+        # A hack to make sure there is username and groupname of the mapped uid
+        # and gid inside the Docker instance
         """
         docker run -t --rm -u $(id -u):$(id -g)    \
+            -v /home/lwang/my_passwd:/etc/passwd   \
+            -v /home/lwang/my_group:/etc/group     \
             -v /diskmnt:/diskmnt                   \
             -v $(dirname $PWD):/repo               \
             {GATK_DOCKER_IMG}                      \
-            gatk CreateReadCountPanelOfNormals \
-                --java-options "-Xmx16000m" \
+            gatk --java-options "-Xmx16000m" \
+                CreateReadCountPanelOfNormals \
                 {params.pon_pth_args} \
                 --annotated-intervals {PROJ_FOLDER_IN_DOCKER}/{input.annotated_intervals} \
                 -O {PROJ_FOLDER_IN_DOCKER}/{output} \
