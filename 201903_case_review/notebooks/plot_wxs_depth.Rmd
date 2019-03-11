@@ -1,0 +1,186 @@
+---
+title: "Plot WXS depth"
+output: html_notebook
+---
+
+Plot the WXS bam depth as a proxy of somatic CNV for sample C3L-01834.
+
+```{r, message=FALSE}
+library(tidyverse)
+library(gtrellis)
+library(rtracklayer)
+```
+
+
+Load GDC genome's seqinfo
+```{r}
+hg38_seqinfo = readRDS('../../201901_locate_discovery_data/annotations/seqinfo_GRCh38.d1.vd1.rds')
+hg38_canonical_seqinfo = keepStandardChromosomes(hg38_seqinfo)
+
+hg38_xlims = tibble(
+    chrom = seqnames(hg38_canonical_seqinfo),
+    start = 0,  # Same as gtrellis default
+    end = seqlengths(hg38_canonical_seqinfo)
+) %>%
+    filter(chrom != 'chrM')
+```
+
+Load cytoband info
+```{r}
+hg38_cytoband = readRDS('../../201901_locate_discovery_data/annotations/cytoband_hg38.rds')
+
+# simplify the cytoband
+hg38_cytoband <- hg38_cytoband %>%
+    filter(chrom %in% seqnames(hg38_canonical_seqinfo)) %>%
+    mutate(simplified_cytoband_type = case_when(
+        cytoband_type == 'acen' ~ 'centromere',
+        startsWith(name, 'p') ~ 'p arm',
+        startsWith(name, 'q') ~ 'q arm',
+        TRUE ~ NA_character_
+    )) %>%
+    group_by(chrom, simplified_cytoband_type) %>%
+    summarize(start = min(start), end = max(end)) 
+```
+
+Customize the cytoband display. showing only the p/q arm and the centrometer location
+```{r, fig.width=8, fig.height=3}
+cytoband_legend <- ComplexHeatmap::Legend(
+    at = c("p arm", "centromere", "q arm"), 
+    title = "Cytoband type", 
+    type = "grid", 
+    legend_gp = gpar(fille = c("gray50", "red", "gray80")),
+    background = 'transparent'
+)
+
+cytoband_coloring <- function(cytoband_chr) {
+    cytoband_chr %>% 
+        transmute(
+            col = case_when(
+                simplified_cytoband_type == 'centromere' ~ rgb(217, 47, 39, maxColorValue = 255),
+                simplified_cytoband_type == 'p arm' ~ 'gray50',
+                simplified_cytoband_type == 'q arm'~ 'gray80',
+                TRUE ~ '#FFFFFF'
+            )
+        ) %>% 
+        pull(col)
+}
+
+cytoband_panel_drawer <- function(gr) {
+    cytoband_chr = gr
+    grid.rect(
+        cytoband_chr$start, unit(0, "npc"),
+        width = cytoband_chr$end - cytoband_chr$start, height = unit(1, "npc"),
+        default.units = "native", hjust = 0, vjust = 0,
+        gp = gpar(
+            fill = cytoband_coloring(cytoband_chr),
+            col = 'transparent'
+        ))
+    # Plot the block
+    grid.rect(
+        min(cytoband_chr$start), unit(0, "npc"),
+        width = max(cytoband_chr$end) - min(cytoband_chr$start), height = unit(1, "npc"),
+        default.units = "native", hjust = 0, vjust = 0,
+        gp = gpar(fill = "transparent")
+    )
+}
+
+gtrellis_layout(
+    # species = 'hg38', 
+    data = hg38_xlims,
+    nrow = 2, compact = TRUE,
+    n_track = 2, 
+    track_axis = c(FALSE),
+    track_height = unit.c(1.5 * grobHeight(textGrob("1XY")), unit(1, 'null')),
+    legend = list(cytoband_legend@grob)
+)
+# Track for chromosome names
+add_track(panel_fun = function(gr) {
+    chr = str_sub(get_cell_meta_data("name"), start = 4)
+    grid.rect(gp = gpar(fill = "#EEEEEE"))
+    grid.text(chr, gp = gpar(fontsize = 10))
+})
+add_track(
+    hg38_cytoband, 
+    panel_fun = cytoband_panel_drawer
+)
+```
+
+```{r}
+clamp_seq_depth <- function(gr, max = 750) {
+    clamp_gr <- gr
+    clamp_gr$score[clamp_gr$score >= max] <- max
+    clamp_gr
+}
+```
+
+```{r}
+plot_seq_depth <- function(
+    sample, tumor_gr, normal_gr, 
+    max_depth = 600, chroms = c('chr1', 'chr19'), seq = 'WXS'
+) {
+    tumor_gr.clamp <- clamp_seq_depth(tumor_gr, max = max_depth)
+    normal_gr.clamp <- clamp_seq_depth(normal_gr, max = max_depth)
+    gtrellis_layout(
+        data = hg38_xlims %>% filter(chrom %in% chroms),
+        n_track = 4,
+        track_axis = c(FALSE, TRUE, TRUE, FALSE),
+        track_height = unit.c(1.5 * grobHeight(textGrob("1XY")), 
+                              rep(unit(1, "null"), 2), 
+                              unit(4, 'mm')),
+        # nrow = 3, compact = TRUE,
+        xlab = NULL,
+        track_ylab = c('', 'Tumor depth', 'Normal depth', ''),
+        track_ylim = c(0, max_depth),
+        legend = list(cytoband_legend),
+        title = str_interp('${sample} tumor and normal ${seq} coverage')
+    )
+    # Track for chromosome names
+    add_track(panel_fun = function(gr) {
+        chr = str_sub(get_cell_meta_data("name"), start = 4)
+        grid.rect(gp = gpar(fill = "#EEEEEE"))
+        grid.text(chr, gp = gpar(fontsize = 10))
+    })
+    # Track for sequencing depth
+    add_points_track(
+        tumor_gr.clamp, 
+        tumor_gr.clamp$score,
+        # size = unit(0.5, 'mm'),
+        gp = gpar(col = "black")
+    )
+    add_points_track(
+        normal_gr.clamp, 
+        normal_gr.clamp$score,
+        # size = unit(0.5, 'mm'),
+        gp = gpar(col = "black")
+    )
+    # Track for cytoband
+    add_track(
+        hg38_cytoband, 
+        panel_fun = cytoband_panel_drawer
+    )
+}
+```
+
+
+```{r, fig.width=10, fig.height=5}
+tumor_wxs_depth_gr <- import.bedGraph('../processed_data/wxs_depth/C3L-01834.tumor.regions.bed.gz', genome = hg38_seqinfo)
+normal_wxs_depth_gr <- import.bedGraph('../processed_data/wxs_depth/C3L-01834.normal.regions.bed.gz', genome = hg38_seqinfo)
+plot_seq_depth(sample = 'C3L-01834', tumor_wxs_depth_gr, normal_wxs_depth_gr, 
+               750, chroms = c('chr1', 'chr2', 'chr3', 'chr19'))
+```
+
+Positive control using C3L-00104 WXS (chr7 amp and chr10 del)
+```{r, fig.width=10, fig.height=5}
+tumor_wxs_depth_gr <- import.bedGraph('../processed_data/wxs_depth/C3L-00104.tumor.regions.bed.gz', genome = hg38_seqinfo)
+normal_wxs_depth_gr <- import.bedGraph('../processed_data/wxs_depth/C3L-00104.normal.regions.bed.gz', genome = hg38_seqinfo)
+plot_seq_depth(sample = 'C3L-00104', tumor_wxs_depth_gr, normal_wxs_depth_gr, 750, chroms = c('chr7', 'chr10'))
+```
+
+
+Positive control using C3L-00104 WGS (chr7 amp and chr10 del)
+```{r, fig.width=10, fig.height=5}
+tumor_wxs_depth_gr <- import.bedGraph('../processed_data/wgs_depth/C3L-00104.tumor.regions.bed.gz', genome = hg38_seqinfo)
+normal_wxs_depth_gr <- import.bedGraph('../processed_data/wgs_depth/C3L-00104.normal.regions.bed.gz', genome = hg38_seqinfo)
+plot_seq_depth(sample = 'C3L-00104', tumor_wxs_depth_gr, normal_wxs_depth_gr, 
+               60, chroms = c('chr7', 'chr10'), seq = 'WGS')
+```

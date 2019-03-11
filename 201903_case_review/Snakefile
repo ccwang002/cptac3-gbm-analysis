@@ -124,13 +124,23 @@ rule calculate_wxs_bam_depth:
 
 wxs_bams_of_interest = [
     ('C3L-01834', 'normal'),
-    ('C3L-01834', 'tumor')
+    ('C3L-01834', 'tumor'),
+    ('C3L-00104', 'normal'),
+    ('C3L-00104', 'tumor'),
 ]
 
+wgs_bams_of_interest = [
+    ('C3L-00104', 'normal'),
+    ('C3L-00104', 'tumor'),
+]
 rule calc_bam_depths_of_interest:
-    """Caculate the WXS BAM depth of of interest."""
-    input: [rules.calculate_wxs_bam_depth.output[0].format(sample=sample, bam_type=bam_type) \
-            for sample, bam_type in wxs_bams_of_interest]
+    """Caculate the WXS/WGS BAM depth of of interest."""
+    input:
+        wxs=[rules.calculate_wxs_bam_depth.output[0].format(sample=sample, bam_type=bam_type) \
+            for sample, bam_type in wxs_bams_of_interest],
+        wgs=[rules.calculate_wgs_bam_depth.output[0].format(sample=sample, bam_type=bam_type) \
+            for sample, bam_type in wgs_bams_of_interest]
+
 # }}}
 
 
