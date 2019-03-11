@@ -201,11 +201,15 @@ rule gatk_createreadcountpon:
     log: 'logs/gatk_cnv/create_pon_hdf5.log'
     shell:
         # A hack to make sure there is username and groupname of the mapped uid
-        # and gid inside the Docker instance
+        # and gid inside the Docker instance.
+        #
+        # my_password and my_group is created by appending the /etc/passwd and
+        # /etc/group inside the Docker image with my username and cptac group
+        # (with correct uid/gid mapping).
         """
         docker run -t --rm -u $(id -u):$(id -g)    \
-            -v /home/lwang/my_passwd:/etc/passwd   \
-            -v /home/lwang/my_group:/etc/group     \
+            -v $PWD/my_passwd:/etc/passwd          \
+            -v $PWD/my_group:/etc/group            \
             -v /diskmnt:/diskmnt                   \
             -v $(dirname $PWD):/repo               \
             {GATK_DOCKER_IMG}                      \
