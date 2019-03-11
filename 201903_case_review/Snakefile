@@ -6,6 +6,7 @@ from pathlib import Path
 OMIC_UUID_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_omics_UUIDs.tsv'
 KATMAI_MAP = '../matt_catalog/katmai.BamMap.dat'
 GDC_REF_FA_PTH = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+WXS_TARGET_ROI_BED_PTH = '../201901_locate_discovery_data/annotations/hg38_exome_targeted_regions.bed.gz'
 GATK_DOCKER_IMG = 'broadinstitute/gatk:4.1.0.0'
 # Path to the folder of Snakefile inside the Docker image
 PROJ_FOLDER_IN_DOCKER = '/repo/201903_case_review'
@@ -16,19 +17,22 @@ uuid_to_local_file_pth = {}
 with open(KATMAI_MAP) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
     for row in reader:
-        # Keep only WGS UUIDs
-        if row['experimental_strategy'] == 'WGS':
+        # Keep only WGS/WXS UUIDs
+        if row['experimental_strategy'] in ('WGS', 'WXS'):
             uuid_to_local_file_pth[row['UUID']] = Path(row['data_path'])
 
 
-# Link the WXS BAMs and their indices
-sample_to_bam_type_pth = {}
+# Link the WGS/WXS BAMs and their indices
+sample_to_wgs_bam_pth = {}
+sample_to_wxs_bam_pth = {}
 with open(OMIC_UUID_MANIFEST) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
     for row in reader:
         sample = row['case']
-        sample_to_bam_type_pth[sample] = {}
+        sample_to_wgs_bam_pth[sample] = {}
+        sample_to_wxs_bam_pth[sample] = {}
 
+        # Link WGS BAMs
         normal_bam_uuid = row['wgs_blood_normal_bam']
         tumor_bam_uuid = row['wgs_tumor_bam']
 
@@ -38,29 +42,38 @@ with open(OMIC_UUID_MANIFEST) as f:
         ]:
             if uuid == 'NA':
                 continue
-            sample_to_bam_type_pth[sample][bam_type] = uuid_to_local_file_pth[uuid]
+            sample_to_wgs_bam_pth[sample][bam_type] = uuid_to_local_file_pth[uuid]
+
+        # Link WXS BAMs
+        normal_bam_uuid = row['wxs_blood_normal_bam']
+        tumor_bam_uuid = row['wxs_tumor_bam']
+
+        for bam_type, uuid in [
+            ('normal', normal_bam_uuid),
+            ('tumor', tumor_bam_uuid),
+        ]:
+            if uuid == 'NA':
+                continue
+            sample_to_wxs_bam_pth[sample][bam_type] = uuid_to_local_file_pth[uuid]
 
 # }}}
 
-# Use all GBM normals in the discovery cohort as PoN
-PON_SAMPLES = set()
-TUMOR_SAMPLES = set()
-for sample, bam_map in sample_to_bam_type_pth.items():
-    if 'normal' in bam_map:
-        PON_SAMPLES.add(sample)
-    if 'tumor' in bam_map:
-        TUMOR_SAMPLES.add(sample)
 
-
-rule link_gdc_wgs_bam:
+rule link_gdc_bam:
     """Link one WGS BAM locally."""
     input: manifest=OMIC_UUID_MANIFEST,
            local_map=KATMAI_MAP
     output:
-        bam='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam',
-        bai='external_data/GDC_WGS_bam/{sample}.{bam_type}.bam.bai'
+        bam='external_data/GDC_{seq}_bam/{sample}.{bam_type}.bam',
+        bai='external_data/GDC_{seq}_bam/{sample}.{bam_type}.bam.bai'
     run:
-        bam_src_pth = sample_to_bam_type_pth[wildcards.sample][wildcards.bam_type]
+        if wildcards.seq == 'WGS':
+            bam_map = sample_to_wgs_bam_pth
+        elif wildcards.seq == 'WXS':
+            bam_map = sample_to_wxs_bam_pth
+        else:
+            raise ValueError(f'Unknown sequencing type {wildcards.seq}')
+        bam_src_pth = bam_map[wildcards.sample][wildcards.bam_type]
         bai_src_pth = bam_src_pth.with_suffix('.bam.bai')
 
         bam_dst_pth = Path(output['bam'])
@@ -70,26 +83,69 @@ rule link_gdc_wgs_bam:
 
 
 # Calculate the read depth {{{
+def cal_additional_threads(wildcards, input, output, threads):
+    return threads - 1
+
+
 rule calculate_wgs_bam_depth:
     """Calculate the WGS BAM sequencing depth."""
     output: 'processed_data/wgs_depth/{sample}.{bam_type}.regions.bed.gz'
-    input: rules.link_gdc_wgs_bam.output['bam']
+    input:
+        bam=rules.link_gdc_bam.output['bam'].replace('{seq}', 'WGS')
+    threads: 3
+    params:
+        add_threads=cal_additional_threads
     shell:
         "mosdepth "
         "-n --fast-mode "
+        "--threads {params.add_threads} "
         "--by 500 "
         "processed_data/wgs_depth/{wildcards.sample}.{wildcards.bam_type} "
         "{input}"
 
 
-rule wgs_bam_depth_samples_of_interest:
-    """Caculate the WGS BAM depth of all samples of interest."""
-    input: [rules.calculate_wgs_bam_depth.output[0].format(sample=sample, bam_type=bam_type) \
-            for sample, bam_type in [('C3L-01834', 'normal'), ]]
+rule calculate_wxs_bam_depth:
+    """Calculate the WXS BAM sequencing depth."""
+    output: 'processed_data/wxs_depth/{sample}.{bam_type}.regions.bed.gz'
+    input:
+        bam=rules.link_gdc_bam.output['bam'].replace('{seq}', 'WXS'),
+        wxs_roi=WXS_TARGET_ROI_BED_PTH
+    threads: 3
+    params:
+        add_threads=cal_additional_threads
+    shell:
+        "mosdepth "
+        "-n --fast-mode "
+        "--threads {params.add_threads} "
+        "--by {input.wxs_roi} "
+        "processed_data/wxs_depth/{wildcards.sample}.{wildcards.bam_type} "
+        "{input.bam}"
+
+
+wxs_bams_of_interest = [
+    ('C3L-01834', 'normal'),
+    ('C3L-01834', 'tumor')
+]
+
+rule calc_bam_depths_of_interest:
+    """Caculate the WXS BAM depth of of interest."""
+    input: [rules.calculate_wxs_bam_depth.output[0].format(sample=sample, bam_type=bam_type) \
+            for sample, bam_type in wxs_bams_of_interest]
 # }}}
 
 
 # GATK4 somatic WGS CNV (PoN) {{{
+
+# Use all GBM normals in the discovery cohort as PoN
+PON_SAMPLES = set()
+TUMOR_SAMPLES = set()
+for sample, bam_map in sample_to_wgs_bam_pth.items():
+    if 'normal' in bam_map:
+        PON_SAMPLES.add(sample)
+    if 'tumor' in bam_map:
+        TUMOR_SAMPLES.add(sample)
+
+
 rule gatk_preprocessintervals:
     """GATK PreprocessIntervals for WGS."""
     input: ref_fa=GDC_REF_FA_PTH,
