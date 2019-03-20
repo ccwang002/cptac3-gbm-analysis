@@ -31,7 +31,12 @@ Collect the somatic CNV calls from WGS.
 
 
 ### `201903_case_review` on katmai
-Review some cases that may not be glioblastoma.
+Review some cases that may not be glioblastoma.  It also tests the somatic CNV
+calling using WGS/WXS sequencing coverage, and GATK4 PoN pipeline.
+
+
+### `201903_methylation_array` on denali
+Annotate the processed EPIC methylation microarray.
 
 
 
