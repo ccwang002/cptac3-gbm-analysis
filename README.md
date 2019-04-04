@@ -10,6 +10,26 @@ for details.
 
 
 
+## Matt's GDC catalog
+`matt_catalog` is the [GDC data catelog][matt-catelog-github] maintained by
+Matt in another GitHub repository. To update the catelog to the latest version,
+run git subtree at the root folder of this git repository:
+
+```
+git subtree pull --squash \
+    --prefix matt_catalog \
+    git@github.com:ding-lab/CPTAC3.catalog.git master
+```
+
+[matt-catelog-github]: https://github.com/ding-lab/CPTAC3.catalog
+
+
+
+## Ad-hoc cohort
+### `201904_locate_adhoc_data` on denali
+
+
+
 ## Discovery cohort
 ### `201901_locate_discovery_data` on denali
 Locate the up-to-date GDC and proteomic data relaese of the discovery cohort
@@ -37,21 +57,6 @@ calling using WGS/WXS sequencing coverage, and GATK4 PoN pipeline.
 
 ### `201903_methylation_array` on denali
 Annotate the processed EPIC methylation microarray.
-
-
-
-## Matt's GDC catalog
-`matt_catalog` is the [GDC data catelog][matt-catelog-github] maintained by
-Matt in another GitHub repository. To update the catelog to the latest version,
-run git subtree at the root folder of this git repository:
-
-```
-git subtree pull --squash \
-    --prefix matt_catalog \
-    git@github.com:ding-lab/CPTAC3.catalog.git master
-```
-
-[matt-catelog-github]: https://github.com/ding-lab/CPTAC3.catalog
 
 
 
