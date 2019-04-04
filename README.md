@@ -25,6 +25,11 @@ git subtree pull --squash \
 
 
 
+## Annotations
+`annotations` is a folder storing commonly used genomic anotations by the projects.
+
+
+
 ## Ad-hoc cohort
 ### `201904_locate_adhoc_data` on denali
 
