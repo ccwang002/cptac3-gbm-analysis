@@ -1,0 +1,90 @@
+---
+title: "Locate all GBM samples"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+Use Matt's catelog to find all GBM samples
+```{r, message=FALSE}
+gdc_case_tbl <- read_tsv(
+    '../../matt_catalog/CPTAC3.cases.dat',
+    col_names = c('case', 'cancer_type', 'cohort', 'analysis_batch'),
+    col_types = cols_only(case=col_character(), cancer_type=col_character())
+) %>% 
+    filter(cancer_type == 'GBM')
+
+gdc_case_tbl %>% nrow()
+```
+
+Only a part of them are in the discovery cohort
+```{r}
+discovery_cases <- read_lines('../../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list')
+```
+
+Load the case list used in the single shot experiment:
+```{r}
+single_shot_cases <- read_lines('../201901_single_shot_cases.list')
+```
+
+```{r}
+gdc_case_tbl <- bind_rows(
+    gdc_case_tbl %>%
+        mutate(
+            in_discovery = case %in% discovery_cases,
+            is_gtex_normal = FALSE
+        ),
+    # Additional GTEx normals
+    tibble(
+        case = str_subset(discovery_cases, '^PT-'),
+        cancer_type = 'GBM',
+        in_discovery = TRUE,
+        is_gtex_normal = TRUE
+    )
+) %>%
+    mutate(
+        in_single_shot = case %in% single_shot_cases
+    )
+```
+
+
+## Build the sequencing data availability from Matt's catelog
+```{r}
+gbm_seq_data <- read_tsv('../../matt_catalog/CPTAC3.AR.dat') %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(case %in% gdc_case_tbl$case) 
+```
+
+### hg38 WXS
+```{r}
+wxs_uuid_tbl <- gbm_seq_data %>% 
+    filter(experimental_strategy == 'WXS' & reference == 'hg38') %>% 
+    select(case, sample_type, UUID) %>%
+    spread(sample_type, UUID) %>%
+    rename(wxs_blood_normal_bam = blood_normal, wxs_tumor_bam = tumor)
+
+wxs_uuid_tbl %>% nrow()
+```
+
+```{r}
+gdc_case_tbl <- gdc_case_tbl %>% 
+    mutate(
+        is_gdc_harmonized = case %in% wxs_uuid_tbl$case
+    )
+```
+
+```{r}
+gdc_case_tbl %>% 
+    count(is_gtex_normal, in_discovery, is_gdc_harmonized)
+
+gdc_case_tbl %>% 
+    count(is_gtex_normal, in_single_shot, is_gdc_harmonized)
+```
+
+Export the case information:
+```{r}
+gdc_case_tbl %>% 
+    write_tsv('../tracked_results/CPTAC3_GBM_all_cases.tsv')
+```

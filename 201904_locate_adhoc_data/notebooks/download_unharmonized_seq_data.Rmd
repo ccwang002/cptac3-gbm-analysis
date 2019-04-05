@@ -1,0 +1,75 @@
+---
+title: "Download unharmonized data"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+case_tbl <- read_tsv('../tracked_results/CPTAC3_GBM_all_cases.tsv')
+case_tbl %>% head()
+```
+
+GDC does not have any GTEx normal sequenced yet
+```{r}
+need_unharmonized_cases <- case_tbl %>%
+    filter(is_gdc_harmonized == FALSE,
+           is_gtex_normal == FALSE) %>%
+    pull(case)
+```
+
+```{r}
+need_unharmonized_cases
+```
+
+
+## Build the sequencing data availability from Matt's catelog
+```{r}
+gbm_seq_data <- read_tsv(
+    '../../matt_catalog/CPTAC3.AR.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(case %in% need_unharmonized_cases) 
+```
+
+Basic sample count
+```{r}
+unharmonized_data <- bind_rows(
+    # WGS and WXS
+    gbm_seq_data %>% 
+        filter(reference == 'hg19', data_format == 'BAM'),
+    # RNA-seq
+    gbm_seq_data %>% 
+        filter(experimental_strategy == 'RNA-Seq', data_format == 'FASTQ') %>%
+        extract(sample_name, 'strand', 'RNA-Seq\\.(R[12])',  remove = FALSE)
+)
+```
+
+```{r}
+unharmonized_data %>%
+    count(experimental_strategy, sample_type, strand)
+```
+
+```{r}
+unharmonized_data %>%
+    group_by(experimental_strategy) %>%
+    summarize(filesize_GB = round(sum(filesize) / (2 ** 30), 1))
+```
+
+```{r}
+unharmonized_data %>%
+    group_by(experimental_strategy) %>%
+    nest(UUID) %>%
+    ungroup() %>%
+    pmap(function(experimental_strategy, data, ...) {
+        write_lines(
+            data$UUID,
+            str_interp('../processed_data/gbm_unharmonized_${experimental_strategy}_UUID.list')
+        )
+        length(data$UUID)
+    })
+```
+
