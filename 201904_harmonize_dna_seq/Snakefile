@@ -37,6 +37,9 @@ with open(MGI_MAP_PTH) as f:
         bam_map[sample] = bam_pth
 # }}}
 
+# At the moment we only test for the first 5 cases
+all_wxs_samples = [f'{case}_{st}' for (case, st) in sorted(wxs_bam_map.keys())][:10]
+
 
 rule link_all_unharmonized_bams:
     """Link all unharmonized WXS BAMs."""
@@ -87,3 +90,10 @@ rule bam_to_fastqs:
         'O={output.o1_fq} O2={output.o2_fq} '
         'S={output.s_fq} '
         '2>{log} 1>&2'
+
+
+rule all_wxs_fastqs:
+    """Export all WXS BAMs as FASTQs."""
+    input:
+        all_wxs_fqs=expand('processed_data/wxs_fqs/{sample}/{sample}.{strand}.fastq.gz', \
+                           sample=all_wxs_samples, strand=['r1', 'r2'])
