@@ -18,9 +18,8 @@ bsub -a "docker(lbwang/dailybox)" -q research-hpc \
     -o  $master_log_pth \
     env SHELL="/bin/bash" \
     snakemake \
-        --rerun-incomplete --nolock
+        --rerun-incomplete --nolock \
         --latency-wait 30 \
-        --immediate-submit \
         --cluster "$PWD/bsub_submitter.py {dependencies} lsf_logs" \
         --cluster-config bsub_config.json \
         -p --debug \
