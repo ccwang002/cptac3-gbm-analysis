@@ -1,6 +1,7 @@
 .snakemake/
 external_data/
 processed_data/
+lsf_logs/
 logs/
 .Rproj.user
 .Rhistory
