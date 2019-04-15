@@ -1,0 +1,59 @@
+import csv
+from pathlib import Path
+
+# Path to the unharmonized cases
+CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_cases.list'
+# Path to the sequencing file mapping from Matt's catalog
+MGI_MAP_PTH = '../matt_catalog/MGI.BamMap.dat'
+GDC_REF_FA_PTH = '/gscmnt/gc2521/dinglab/mwyczalk/somatic-wrapper-data/image.data/A_Reference/GRCh38.d1.vd1.fa'
+
+# Read the list of all the unharmonized cases
+unharmonized_cases = set(open(CASE_LIST_PTH).read().splitlines())
+
+# Build the sample (case, sample_type) BAM map on MGI {{{
+# Data structure of the map
+# (case, sample_type) -> bam_pth
+wxs_bam_map = {}
+wgs_bam_map = {}
+with open(MGI_MAP_PTH) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        case = row['case']
+
+        # Keep only the unharmonized cases of interest
+        if not (case in unharmonized_cases \
+                and row['reference'] == 'hg19' \
+                and row['data_format'] == 'BAM'):
+            continue
+
+        # Get the corresponding bam map
+        if row['experimental_strategy'] == 'WGS':
+            bam_map = wgs_bam_map
+        elif row['experimental_strategy'] == 'WXS':
+            bam_map = wxs_bam_map
+
+        sample = (case, row['sample_type'])
+        bam_pth = Path(row['data_path'])
+        bam_map[sample] = bam_pth
+# }}}
+
+
+rule link_all_unharmonized_bams:
+    """Link all unharmonized WXS BAMs."""
+    input: CASE_LIST_PTH, MGI_MAP_PTH
+    output:
+        wxs_bams=[f'external_data/unharmonized_wxs/{case}_{sample_type}.bam' \
+                  for (case, sample_type) in wxs_bam_map],
+        wxs_bais=[f'external_data/unharmonized_wxs/{case}_{sample_type}.bam.bai' \
+                  for (case, sample_type) in wxs_bam_map]
+    run:
+        for seq_type, bam_map in [('wxs', wxs_bam_map)]:
+            for (case, sample_type), bam_src_pth in bam_map.items():
+                # Link BAM
+                bam_dst_pth = Path(f'external_data/unharmonized_{seq_type}/{case}_{sample_type}.bam')
+                bam_dst_pth.symlink_to(bam_src_pth)
+
+                # Link BAI
+                bai_src_pth = bam_src_pth.with_suffix('.bam.bai')
+                bai_dst_pth = bam_dst_pth.with_suffix('.bam.bai')
+                bai_dst_pth.symlink_to(bai_src_pth)

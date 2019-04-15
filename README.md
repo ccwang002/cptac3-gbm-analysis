@@ -33,6 +33,8 @@ git subtree pull --squash \
 ## Ad-hoc cohort
 ### `201904_locate_adhoc_data` on denali
 
+### `201904_harmonize_dna_seq` on MGI
+Harmonize DNA-seq (WGS and WXS) using similar commands used by GDC
 
 
 ## Discovery cohort
