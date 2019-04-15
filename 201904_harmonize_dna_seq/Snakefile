@@ -82,6 +82,7 @@ rule bam_to_fastqs:
         'gz=1 level=5 '
         'tryoq=1 '
         'combs=1 '
+        'T=$(mktemp --tmpdir tmp_bamtofastq.XXXXXXXXXXXXXXXX) '  # Write temporary files under $TMPDIR
         'F={output.r1_fq} F2={output.r2_fq} '
         'O={output.o1_fq} O2={output.o2_fq} '
         'S={output.s_fq} '
