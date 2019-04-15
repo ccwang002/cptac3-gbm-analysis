@@ -59,6 +59,7 @@ unharmonized_data %>%
     summarize(filesize_GB = round(sum(filesize) / (2 ** 30), 1))
 ```
 
+Write out the unharmonized UUIDs
 ```{r}
 unharmonized_data %>%
     group_by(experimental_strategy) %>%
@@ -71,5 +72,13 @@ unharmonized_data %>%
         )
         length(data$UUID)
     })
+```
+
+Write out the unharmonized case list
+```{r}
+unharmonized_data %>% 
+    distinct(case) %>%
+    pull(case) %>%
+    write_lines('../tracked_results/unharmonized_cases.list')
 ```
 
