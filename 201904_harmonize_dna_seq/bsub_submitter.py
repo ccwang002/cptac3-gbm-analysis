@@ -29,14 +29,14 @@ if 'queue' in cluster:
 
 # Log output to a file
 if "-N" not in props["params"].get("LSF", ""):
-    cmdline += f"-oo {lsf_log_dir}/LSF_{jobname}.log "
+    cmdline += f"-oo ./lsf_logs/LSF_{jobname}.log "
 
 # Pass memory and cpu resource request to LSF
 ncpus = props['threads']
-mem = props.get('resources', {}).get('mem')
-if mem:
+mem_mb = props.get('resources', {}).get('mem_mb')
+if mem_mb:
     cmdline += (
-        f'-R "select[maxmem>{mem} && ncpus>={ncpus}] rusage[mem={mem}]" '
+        f'-R "select[maxmem>{mem_mb} && ncpus>={ncpus}] rusage[mem={mem_mb}]" '
         f'-n {ncpus} -M {mem}000 '
     )
 else:
@@ -46,11 +46,11 @@ else:
     )
 
 # Add rule-specific LSF parameters (e.g. queue, runtime)
-cmdline += props["params"].get("LSF", "") + " "
+cmdline += props["params"].get("bsub_extra", "") + " "
 
 # figure out job dependencies
-dependencies = sys.argv[1:-2]
-if dependencies:
+dep_job_ids = sys.argv[1:-2]
+if dep_job_ids:
     # Create the LSF dependency expression
     dep_expr = " && ".join(dependencies)
     cmdline += f"-w '{dep_expr}' "
