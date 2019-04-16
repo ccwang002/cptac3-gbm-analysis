@@ -116,7 +116,8 @@ rule bwa_align_one_readgroup_fastq:
     shell:
         """
         bwa mem \
-            -t {threads} -T 0 -R {wildcards.rg} \
+            -t {threads} -T 0 \
+            -R '@RG:\\tID:{wildcards.rg}\\tSM:{wildcards.sample}' \
             {GDC_BWA_INDEX_PREFIX} {input.r1_fq} {input.r2_fq} \
         | samtools view -Shb -o {output.bam} -
         """
