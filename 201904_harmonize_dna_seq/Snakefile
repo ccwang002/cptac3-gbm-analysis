@@ -156,7 +156,7 @@ rule picard_merge_readgroup_bams_of_one_sample:
     """Merge all readgroup BAMs of one sample by Picard."""
     output:
         merged_bam=temp('processed_data/{seq_type}_merged_bam/{sample}.bam'),
-        merged_bai='processed_data/{seq_type}_merged_bam/{sample}.bai'
+        merged_bai=temp('processed_data/{seq_type}_merged_bam/{sample}.bai')
     input: readgroup_bams=get_readgroup_bams_of_one_sample
     params:
         input_bams_args=lambda wildcards, input: \
@@ -187,7 +187,8 @@ rule picard_mark_dup_one_sample:
         bai='processed_data/{seq_type}_mark_dup_bam/{sample}.bai',
         metrics='processed_data/{seq_type}_mark_dup_bam}/{sample}_marked_dup_metrics.txt'
     input:
-        bam=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bam']
+        bam=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bam'],
+        bai=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bai']
     threads: 4
     resources:
         mem_mb=32000
