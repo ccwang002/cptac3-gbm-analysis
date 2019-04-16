@@ -52,7 +52,7 @@ cmdline += props["params"].get("bsub_extra", "") + " "
 dep_job_ids = sys.argv[1:-2]
 if dep_job_ids:
     # Create the LSF dependency expression
-    dep_expr = " && ".join(dependencies)
+    dep_expr = " && ".join(dep_job_ids)
     cmdline += f"-w '{dep_expr}' "
 
 # the actual job

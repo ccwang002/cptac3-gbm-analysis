@@ -8,6 +8,7 @@ CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_cases.
 MGI_MAP_PTH = '../matt_catalog/MGI.BamMap.dat'
 GDC_REF_FA_PTH = '/gscmnt/gc2521/dinglab/mwyczalk/somatic-wrapper-data/image.data/A_Reference/GRCh38.d1.vd1.fa'
 GDC_BWA_INDEX_PREFIX = GDC_REF_FA_PTH
+EMAIL = 'liang-bo.wang@wustl.edu'
 
 # Read the list of all the unharmonized cases
 unharmonized_cases = set(open(CASE_LIST_PTH).read().splitlines())
@@ -118,7 +119,7 @@ rule bwa_align_one_readgroup_fastq:
         dedent("""
         bwa mem \
             -t {threads} -T 0 \
-            -R '@RG:\\tID:{wildcards.rg}\\tSM:{wildcards.sample}' \
+            -R '@RG\\tID:{wildcards.rg}\\tSM:{wildcards.sample}' \
             {GDC_BWA_INDEX_PREFIX} {input.r1_fq} {input.r2_fq} \
         | samtools view -Shb -o {output.bam} -
         """)
@@ -134,9 +135,8 @@ rule picard_sort_one_readgroup_bam:
     shell:
         "picard -Xmx{resources.mem_mb}m SortSam "
         "CREATE_INDEX=true "
-        "INPUT={input.bam} "
-        "OUTPUT={output.bam} "
-        "USE_THREADING=true "
+        "I={input.bam} "
+        "O={output.bam} "
         "SORT_ORDER=coordinate "
         "VALIDATION_STRINGENCY=STRICT "
         "TMP_DIR=$(mktemp -d --tmpdir tmp_picard.XXXXXXXXXXXXXXXX) "
@@ -154,13 +154,14 @@ def get_readgroup_bams_of_one_sample(wildcards):
 
 rule picard_merge_readgroup_bams_of_one_sample:
     """Merge all readgroup BAMs of one sample by Picard."""
-    output: 
+    output:
         merged_bam='processed_data/{seq_type}_merged_bam/{sample}.bam',
         merged_bai='processed_data/{seq_type}_merged_bam/{sample}.bam.bai'
     input: readgroup_bams=get_readgroup_bams_of_one_sample
     params:
         input_bams_args=lambda wildcards, input: \
-            [f'INPUT={pth}' for pth in input['readgroup_bams']]
+            [f'I={pth}' for pth in input['readgroup_bams']],
+        bsub_extra=f'-N -u {EMAIL}'
     threads: 2
     resources:
         mem_mb=16000
@@ -171,7 +172,7 @@ rule picard_merge_readgroup_bams_of_one_sample:
         "CREATE_INDEX=true "
         "MERGE_SEQUENCE_DICTIONARIES=false "
         "{params.input_bams_args} "
-        "OUTPUT={output.merged_bam} "
+        "O={output.merged_bam} "
         "USE_THREADING=true "
         "SORT_ORDER=coordinate "
         "VALIDATION_STRINGENCY=STRICT "

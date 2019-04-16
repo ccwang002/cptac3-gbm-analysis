@@ -8,11 +8,15 @@ if [ -z ${CONDA_DEFAULT_ENV+x} ]; then
     exit 1
 fi
 
-# Run snakemake via bsub
 readonly master_log_pth='logs/lsf_master.log'
+# Clean up the existing master log file
+if [ -f $master_log_pth ]; then
+    rm $master_log_pth
+fi
 echoerr "Launch the LSF/bsub master job to run snakemake ..."
 echoerr "... master log location: $master_log_pth"
 echoerr "... additional parameters: $@"
+# Run snakemake via bsub
 bsub -a "docker(lbwang/dailybox)" -q research-hpc \
     -N -u 'liang-bo.wang@wustl.edu' \
     -o  $master_log_pth \
