@@ -37,7 +37,7 @@ mem_mb = props.get('resources', {}).get('mem_mb')
 if mem_mb:
     cmdline += (
         f'-R "select[maxmem>{mem_mb} && ncpus>={ncpus}] rusage[mem={mem_mb}]" '
-        f'-n {ncpus} -M {mem}000 '
+        f'-n {ncpus} -M {mem_mb}000 '
     )
 else:
     cmdline += (
