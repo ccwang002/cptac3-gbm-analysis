@@ -184,7 +184,8 @@ rule picard_mark_dup_one_sample:
     """Picard MarkDuplicates on one sample."""
     output:
         bam='processed_data/{seq_type}_mark_dup_bam/{sample}.bam',
-        bai='processed_data/{seq_type}_mark_dup_bam/{sample}.bai'
+        bai='processed_data/{seq_type}_mark_dup_bam/{sample}.bai',
+        metrics='processed_data/{seq_type}_mark_dup_bam}/{sample}_marked_dup_metrics.txt'
     input:
         bam=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bam']
     threads: 4
@@ -196,7 +197,7 @@ rule picard_mark_dup_one_sample:
     shell:
         "picard -Xmx25000m MarkDuplicates "
         "CREATE_INDEX=true "
-        "I={input.bam} O={output.bam} "
+        "I={input.bam} O={output.bam} M={output.metrics} "
         "VALIDATION_STRINGENCY=STRICT "
         "TMP_DIR=$(mktemp -d --tmpdir tmp_picard.XXXXXXXXXXXXXXXX) "
         "2>{log} 1>&2"
