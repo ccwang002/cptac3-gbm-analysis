@@ -23,7 +23,7 @@ bsub -a "docker(lbwang/dailybox)" -q research-hpc \
     env SHELL="/bin/bash" \
     snakemake \
         --rerun-incomplete --nolock \
-        --latency-wait 15 \
+        --latency-wait 30 \
         --cluster "$PWD/bsub_submitter.py {dependencies} lsf_logs" \
         --cluster-config bsub_config.json \
         -p --reason --verbose \
