@@ -160,8 +160,7 @@ rule picard_merge_readgroup_bams_of_one_sample:
     input: readgroup_bams=get_readgroup_bams_of_one_sample
     params:
         input_bams_args=lambda wildcards, input: \
-            [f'I={pth}' for pth in input['readgroup_bams']],
-        bsub_extra=f'-N -u {EMAIL}'
+            [f'I={pth}' for pth in input['readgroup_bams']]
     threads: 4
     resources:
         mem_mb=8000
@@ -191,12 +190,12 @@ rule picard_mark_dup_one_sample:
         bai=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bai']
     threads: 4
     resources:
-        mem_mb=32000
+        mem_mb=48000
     params:
         bsub_extra=f'-N -u {EMAIL}'
     log: 'logs/picard_mark_dup/{seq_type}/{sample}.log'
     shell:
-        "picard -Xmx25000m MarkDuplicates "
+        "picard -Xmx40000m MarkDuplicates "
         "CREATE_INDEX=true "
         "I={input.bam} O={output.bam} M={output.metrics} "
         "VALIDATION_STRINGENCY=STRICT "
