@@ -70,6 +70,8 @@ checkpoint bam_to_fastqs:
     input: bam='external_data/unharmonized_{seq_type}/{sample}.bam'
     output: sample_folder=directory('processed_data/{seq_type}_fqs/{sample}')
     log: 'logs/bam_to_fastqs/{seq_type}/{sample}.log'
+    resources:
+        io_heavy=1
     shell:
         'mkdir {output.sample_folder}; '
         'bamtofastq '
