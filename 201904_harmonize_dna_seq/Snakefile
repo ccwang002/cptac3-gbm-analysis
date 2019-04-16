@@ -178,3 +178,9 @@ rule picard_merge_readgroup_bams_of_one_sample:
         "VALIDATION_STRINGENCY=STRICT "
         "TMP_DIR=$(mktemp -d --tmpdir tmp_picard.XXXXXXXXXXXXXXXX) "
         "2>{log} 1>&2"
+
+
+rule all_wxs_picard_merged_bams:
+    """Merge all WXS samples by Picard."""
+    input: bams=[f'processed_data/wxs_merged_bam/{sample}.bam' \
+                 for sample in all_wxs_samples]
