@@ -185,7 +185,7 @@ rule picard_mark_dup_one_sample:
     output:
         bam='processed_data/{seq_type}_mark_dup_bam/{sample}.bam',
         bai='processed_data/{seq_type}_mark_dup_bam/{sample}.bai',
-        metrics='processed_data/{seq_type}_mark_dup_bam}/{sample}_marked_dup_metrics.txt'
+        metrics='processed_data/{seq_type}_mark_dup_bam/{sample}_marked_dup_metrics.txt'
     input:
         bam=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bam'],
         bai=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bai']
