@@ -156,15 +156,15 @@ rule picard_merge_readgroup_bams_of_one_sample:
     """Merge all readgroup BAMs of one sample by Picard."""
     output:
         merged_bam=temp('processed_data/{seq_type}_merged_bam/{sample}.bam'),
-        merged_bai='processed_data/{seq_type}_merged_bam/{sample}.bam.bai'
+        merged_bai='processed_data/{seq_type}_merged_bam/{sample}.bai'
     input: readgroup_bams=get_readgroup_bams_of_one_sample
     params:
         input_bams_args=lambda wildcards, input: \
             [f'I={pth}' for pth in input['readgroup_bams']],
         bsub_extra=f'-N -u {EMAIL}'
-    threads: 2
+    threads: 4
     resources:
-        mem_mb=16000
+        mem_mb=8000
     log: 'logs/picard_merge_bams/{seq_type}/{sample}.log'
     shell:
         "picard -Xmx{resources.mem_mb}m MergeSamFiles "
@@ -184,16 +184,17 @@ rule picard_mark_dup_one_sample:
     """Picard MarkDuplicates on one sample."""
     output:
         bam='processed_data/{seq_type}_mark_dup_bam/{sample}.bam',
-        bai='processed_data/{seq_type}_mark_dup_bam/{sample}.bam.bai'
+        bai='processed_data/{seq_type}_mark_dup_bam/{sample}.bai'
     input:
         bam=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bam']
+    threads: 4
     resources:
-        mem_mb=16000
+        mem_mb=32000
     params:
         bsub_extra=f'-N -u {EMAIL}'
     log: 'logs/picard_mark_dup/{seq_type}/{sample}.log'
     shell:
-        "picard -Xmx{resources.mem_mb}m MarkDuplicates "
+        "picard -Xmx25000m MarkDuplicates "
         "CREATE_INDEX=true "
         "I={input.bam} O={output.bam} "
         "VALIDATION_STRINGENCY=STRICT "
