@@ -6,6 +6,7 @@ CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_cases.
 # Path to the sequencing file mapping from Matt's catalog
 MGI_MAP_PTH = '../matt_catalog/MGI.BamMap.dat'
 GDC_REF_FA_PTH = '/gscmnt/gc2521/dinglab/mwyczalk/somatic-wrapper-data/image.data/A_Reference/GRCh38.d1.vd1.fa'
+GDC_BWA_INDEX_PREFIX = GDC_REF_FA_PTH
 
 # Read the list of all the unharmonized cases
 unharmonized_cases = set(open(CASE_LIST_PTH).read().splitlines())
@@ -62,22 +63,13 @@ rule link_all_unharmonized_bams:
                 bai_dst_pth.symlink_to(bai_src_pth)
 
 
-rule bam_to_fastqs:
+checkpoint bam_to_fastqs:
     """Export reads as FASTQs from an aligned BAM."""
-    output:
-        # first mates of pairs
-        r1_fq='processed_data/{seq_type}_fqs/{sample}/{sample}.r1.fastq.gz',
-        # second mates of pairs
-        r2_fq='processed_data/{seq_type}_fqs/{sample}/{sample}.r2.fastq.gz',
-        # unmatched (orphan) first mates
-        o1_fq='processed_data/{seq_type}_fqs/{sample}/{sample}.o1.fastq.gz',
-        # unmatched (orphan) second mates
-        o2_fq='processed_data/{seq_type}_fqs/{sample}/{sample}.o2.fastq.gz',
-        # single end reads
-        s_fq='processed_data/{seq_type}_fqs/{sample}/{sample}.s.fastq.gz'
     input: bam='external_data/unharmonized_{seq_type}/{sample}.bam'
+    output: sample_folder=directory('processed_data/{seq_type}_fqs/{sample}')
     log: 'logs/bam_to_fastqs/{seq_type}/{sample}.log'
     shell:
+        'mkdir {output.sample_folder}; '
         'bamtofastq '
         'filename={input.bam} inputformat=bam '
         'collate=1 '
@@ -86,14 +78,100 @@ rule bam_to_fastqs:
         'tryoq=1 '
         'combs=1 '
         'T=$(mktemp --tmpdir tmp_bamtofastq.XXXXXXXXXXXXXXXX) '  # Write temporary files under $TMPDIR
-        'F={output.r1_fq} F2={output.r2_fq} '
-        'O={output.o1_fq} O2={output.o2_fq} '
-        'S={output.s_fq} '
+        'outputdir={output.sample_folder} '
+        'outputperreadgroup=1 '
+        'outputperreadgroupsuffixF=_1.fq.gz '
+        'outputperreadgroupsuffixF2=_2.fq.gz '
+        'outputperreadgroupsuffixO=_o1.fq.gz '
+        'outputperreadgroupsuffixO2=_o2.fq.gz '
+        'outputperreadgroupsuffixS=_s.fq.gz '
         '2>{log} 1>&2'
 
 
 rule all_wxs_fastqs:
     """Export all WXS BAMs as FASTQs."""
     input:
-        all_wxs_fqs=expand('processed_data/wxs_fqs/{sample}/{sample}.{strand}.fastq.gz', \
+        all_wxs_fqs=expand('processed_data/wxs_fqs/{sample}', \
                            sample=all_wxs_samples, strand=['r1', 'r2'])
+
+
+def get_readgroups_of_one_sample(wildcards):
+    """Get the available read groups of a sample."""
+    sample_folder = Path(checkpoints.bam_to_fastqs.get(**wildcards).output['sample_folder'])
+    all_readgroups = set(p.name[:-len('_1.fq.gz')] for p in sample_folder.glob('*_1.fq.gz'))
+    # ignore the `default` RG
+    all_readgroups -= set(['default'])
+    return sorted(all_readgroups)
+
+
+rule bwa_align_one_readgroup_fastq:
+    """BWA MEM alignemnt of one readgroup FASTQs."""
+    output: bam='processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.bam'
+    input:
+        r1_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_1.fq.gz',
+        r2_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_2.fq.gz'
+    threads: 8
+    resources:
+        mem_mb=32000
+    shell:
+        """
+        bwa mem \
+            -t {threads} -T 0 -R {wildcards.rg} \
+            {GDC_BWA_INDEX_PREFIX} {input.r1_fq} {input.r2_fq} \
+        | samtools view -Shb -o {output.bam} -
+        """
+
+rule picard_sort_one_readgroup_bam:
+    """Picard sort one readgroup BAM."""
+    output: bam='processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.sorted.bam'
+    input: bam=rules.bwa_align_one_readgroup_fastq.output['bam']
+    threads: 2
+    resources:
+        mem_mb=8000
+    log: 'logs/picard_sort_rg_bam/{seq_type}/{sample}/{rg}.log'
+    shell:
+        "picard -Xmx{resources.mem_mb}m SortSam "
+        "CREATE_INDEX=true "
+        "INPUT={input.bam} "
+        "OUTPUT={output.bam} "
+        "USE_THREADING=true "
+        "SORT_ORDER=coordinate "
+        "VALIDATION_STRINGENCY=STRICT "
+        "TMP_DIR=$(mktemp -d --tmpdir tmp_picard.XXXXXXXXXXXXXXXX) "
+        "2>{log} 1>&2"
+
+
+def get_readgroup_bams_of_one_sample(wildcards):
+    all_readgroups = get_readgroups_of_one_sample(wildcards)
+    return [
+        f'processed_data/{wildcards.seq_type}_readgroup_bam/'
+        f'{wildcards.sample}/{rg}.sorted.bam'
+        for rg in all_readgroups
+    ]
+
+
+rule picard_merge_readgroup_bams_of_one_sample:
+    """Merge all readgroup BAMs of one sample by Picard."""
+    output: 
+        merged_bam='processed_data/{seq_type}_merged_bam/{sample}.bam',
+        merged_bai='processed_data/{seq_type}_merged_bam/{sample}.bam.bai'
+    input: readgroup_bams=get_readgroup_bams_of_one_sample
+    params:
+        input_bams_args=lambda wildcards, input: \
+            [f'INPUT={pth}' for pth in input['readgroup_bams']]
+    threads: 2
+    resources:
+        mem_mb=8000
+    log: 'logs/picard_merge_bams/{seq_type}/{sample}.log'
+    shell:
+        "picard -Xmx{resources.mem_mb}m MergeSamFiles "
+        "ASSUME_SORTED=false "
+        "CREATE_INDEX=true "
+        "MERGE_SEQUENCE_DICTIONARIES=false "
+        "{params.input_bams_args} "
+        "OUTPUT={output.merged_bam} "
+        "USE_THREADING=true "
+        "SORT_ORDER=coordinate "
+        "VALIDATION_STRINGENCY=STRICT "
+        "TMP_DIR=$(mktemp -d --tmpdir tmp_picard.XXXXXXXXXXXXXXXX) "
+        "2>{log} 1>&2"
