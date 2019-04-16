@@ -93,8 +93,8 @@ checkpoint bam_to_fastqs:
 rule all_wxs_fastqs:
     """Export all WXS BAMs as FASTQs."""
     input:
-        all_wxs_fqs=expand('processed_data/wxs_fqs/{sample}', \
-                           sample=all_wxs_samples, strand=['r1', 'r2'])
+        all_wxs_fq_folders=expand('processed_data/wxs_fqs/{sample}', \
+                                  sample=all_wxs_samples, strand=['r1', 'r2'])
 
 
 def get_readgroups_of_one_sample(wildcards):
@@ -108,7 +108,7 @@ def get_readgroups_of_one_sample(wildcards):
 
 rule bwa_align_one_readgroup_fastq:
     """BWA MEM alignemnt of one readgroup FASTQs."""
-    output: bam='processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.bam'
+    output: bam=temp('processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.bam')
     input:
         r1_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_1.fq.gz',
         r2_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_2.fq.gz'
@@ -126,7 +126,7 @@ rule bwa_align_one_readgroup_fastq:
 
 rule picard_sort_one_readgroup_bam:
     """Picard sort one readgroup BAM."""
-    output: bam='processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.sorted.bam'
+    output: bam=temp('processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.sorted.bam')
     input: bam=rules.bwa_align_one_readgroup_fastq.output['bam']
     threads: 2
     resources:
@@ -155,7 +155,7 @@ def get_readgroup_bams_of_one_sample(wildcards):
 rule picard_merge_readgroup_bams_of_one_sample:
     """Merge all readgroup BAMs of one sample by Picard."""
     output:
-        merged_bam='processed_data/{seq_type}_merged_bam/{sample}.bam',
+        merged_bam=temp('processed_data/{seq_type}_merged_bam/{sample}.bam'),
         merged_bai='processed_data/{seq_type}_merged_bam/{sample}.bam.bai'
     input: readgroup_bams=get_readgroup_bams_of_one_sample
     params:
