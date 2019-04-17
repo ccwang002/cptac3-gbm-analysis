@@ -200,6 +200,7 @@ rule salmon_quant_one_sample:
         '--gcBias '  # Correct for GC bias
         '--seqBias '  # Correct for radnom haxomer priming bias
         '--validateMappings '  # Confirm the quantification by actual alignment
+        '--mimicBT2 '  # meta flag to enable Bowtie2 like behavior
         '--rangeFactorizationBins 4 '  # Fine tuning the transcript quantification
         '-1 {input.r1_fq} -2 {input.r2_fq} '
         '-p {threads} '
