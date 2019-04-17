@@ -114,9 +114,9 @@ rule bwa_align_one_readgroup_fastq:
     input:
         r1_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_1.fq.gz',
         r2_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_2.fq.gz'
-    threads: 8
+    threads: 4
     resources:
-        mem_mb=16000
+        mem_mb=8000
     shell:
         dedent("""
         bwa mem \
