@@ -192,6 +192,8 @@ rule salmon_quant_one_sample:
         salmon_ix_folder=SALMON_INDEX_FOLDER_FMT,
         out_folder='processed_data/salmon_quants/{annotation_src}/{sample}'
     threads: 4
+    resources:
+        mem_mb=8000
     log: 'logs/salmon_quants/{annotation_src}/{sample}.log'
     shell:
         'salmon quant '

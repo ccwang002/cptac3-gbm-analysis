@@ -1,0 +1,6 @@
+{
+    "__default__": {
+        "queue": "research-hpc",
+        "docker_image": "lbwang/dailybox"
+    }
+}
