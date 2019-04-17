@@ -14,17 +14,6 @@ ALL_ANNOTATION_SOURCES = ['gencode_basic', 'gencode_comp', 'ensembl']
 CPTAC_CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/rna_tumor_cases_on_katmai.list'
 GTEX_SAMPLES_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/gtex_normal_samples.list'
 
-# Collect all CPTAC samples
-# Since only the tumor sample of each case has RNA-seq, we use case name here
-CPTAC_SAMPLES = set(open(CPTAC_CASE_LIST_PTH).read().splitlines())
-
-# Collect all GTEx samples
-GTEX_SAMPLES = set(open(GTEX_SAMPLES_LIST_PTH).read().splitlines())
-
-# Merge the sample IDs
-ALL_SAMPLES = CPTAC_SAMPLES | GTEX_SAMPLES
-
-
 # Build Salmon indices (GENCODE and Ensembl) {{{
 rule download_ensembl_ref:
     """Download Ensembl transcript annotation files."""
@@ -142,13 +131,47 @@ rule build_all_salmon_indices:
 # }}}
 
 
+# Collect all CPTAC samples
+# Since only the tumor sample of each case has RNA-seq, we use case name here
+CPTAC_SAMPLES = set(open(CPTAC_CASE_LIST_PTH).read().splitlines())
+
+# Collect all GTEx samples
+GTEX_SAMPLES = set(open(GTEX_SAMPLES_LIST_PTH).read().splitlines())
+
+
+# Link CPTAC RNA-seq FASTQs
+rule link_cptac_gdc_rna_fastqs:
+    """Link the CPTAC RNA-seq fastqs locally."""
+    input: local_map=BAM_MAP_PTH
+    output: expand('external_data/CPTAC_RNA_fq/{sample}.{read}.fastq.gz', \
+                   sample=CPTAC_SAMPLES, read=['R1', 'R2'])
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                if not (row['case'] in CPTAC_SAMPLES and
+                        row['experimental_strategy'] == 'RNA-Seq' and
+                        row['data_format'] == 'FASTQ'):
+                    continue
+                # only the tumor case is used, use case name as sample name
+                sample = row['case']
+                # get the RNA strand
+                strand = row['# sample_name'].rsplit('.', 2)[-2]
+                assert strand in ('R1', 'R2')
+                src_pth = Path(row['data_path'])
+                dst_pth = Path(f'external_data/CPTAC_RNA_fq/{sample}.{strand}.fastq.gz')
+                dst_pth.symlink_to(src_pth)
+
+
 def find_rna_fastq(wildcards):
     """Find the corresponding FASTQs of a sample."""
     sample = wildcards.sample
     if sample in CPTAC_SAMPLES:
         return {
-            'r1_fq': f'external_data/GDC_RNA_fq/{sample}.R1.fastq.gz',
-            'r2_fq': f'external_data/GDC_RNA_fq/{sample}.R2.fastq.gz',
+            'r1_fq': f'external_data/CPTAC_RNA_fq/{sample}.R1.fastq.gz',
+            'r2_fq': f'external_data/CPTAC_RNA_fq/{sample}.R2.fastq.gz',
         }
     elif sample in GTEX_SAMPLES:
         return {
@@ -184,7 +207,7 @@ rule salmon_quant_one_sample:
         '2> {log}'
 
 
-rule salmon_quant_all_samples:
-    """Generate the gene quantification by Salmon of all samples and all annotation sources."""
+rule salmon_quant_all_cptac_samples:
+    """Gene quantification on all CPTAC samples using all annotation sources."""
     input: expand(rules.salmon_quant_one_sample.output[0], \
-                  annotation_src=ALL_ANNOTATION_SOURCES, sample=ALL_SAMPLES)
+                  annotation_src=ALL_ANNOTATION_SOURCES, sample=CPTAC_SAMPLES)
