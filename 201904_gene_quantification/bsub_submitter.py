@@ -27,6 +27,11 @@ if 'queue' in cluster:
     queue = cluster['queue']
     cmdline += f'-q {queue} '
 
+# Add job group
+if 'job_group' in cluster:
+    job_group = cluster['job_group']
+    cmdline += f'-g {job_group} '
+
 # Log output to a file
 if "-N" not in props["params"].get("LSF", ""):
     cmdline += f"-oo ./lsf_logs/LSF_{jobname}.log "

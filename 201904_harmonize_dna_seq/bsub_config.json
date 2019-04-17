@@ -1,6 +1,7 @@
 {
     "__default__": {
         "queue": "research-hpc",
+        "job_group": "/lwang/cptac_dna",
         "docker_image": "lbwang/dailybox"
     }
 }
