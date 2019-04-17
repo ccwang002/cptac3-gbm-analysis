@@ -11,8 +11,8 @@ fi
 readonly master_log_pth='logs/lsf_master.log'
 # Clean up the existing master log file and previous LSF logs
 if [ -f $master_log_pth ]; then
-    rm $master_log_pth
-    rm lsf_logs/*.log
+    rm -f $master_log_pth
+    rm -f lsf_logs/*.log
 fi
 echoerr "Launch the LSF/bsub master job to run snakemake ..."
 echoerr "... master log location: $master_log_pth"
