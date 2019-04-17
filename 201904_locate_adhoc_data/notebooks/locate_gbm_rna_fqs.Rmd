@@ -1,0 +1,104 @@
+---
+title: "Locate GBM RNA-seq data location"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+case_tbl <- read_tsv('../tracked_results/CPTAC3_GBM_all_cases.tsv')
+case_tbl %>% head()
+```
+
+```{r}
+cases_with_unharmonized_seqs <- read_lines('../tracked_results/unharmonized_cases.list')
+```
+
+
+```{r}
+case_tbl %>%
+    mutate(has_unharmonized_seq = case %in% cases_with_unharmonized_seqs) %>%
+    count(is_gtex_normal, in_single_shot, is_gdc_harmonized, has_unharmonized_seq)
+```
+
+# Build the sequencing data availability from Matt's catelog
+All the RNA-seq FASTQs available on GDC
+```{r}
+all_gbm_rna_seq_tbl <- read_tsv(
+    '../../matt_catalog/CPTAC3.AR.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(
+        case %in% case_tbl$case,
+        experimental_strategy == 'RNA-Seq', data_format == 'FASTQ'
+    )
+```
+
+All the RNA-seq FASTQs available on MGI
+```{r}
+mgi_gbm_rna_tbl <- read_tsv(
+    '../../matt_catalog/MGI.BamMap.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    extract(sample_name, 'strand', 'RNA-Seq\\.(R[12])',  remove = FALSE) %>%
+    filter(
+        case %in% case_tbl$case,
+        experimental_strategy == 'RNA-Seq', data_format == 'FASTQ'
+    )
+
+katmai_gbm_rna_tbl <- read_tsv(
+    '../../matt_catalog/katmai.BamMap.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    extract(sample_name, 'strand', 'RNA-Seq\\.(R[12])',  remove = FALSE) %>%
+    filter(
+        case %in% case_tbl$case,
+        experimental_strategy == 'RNA-Seq', data_format == 'FASTQ'
+    )
+```
+
+
+```{r}
+katmai_gbm_rna_tbl %>% 
+    summarize(filesize_gb = sum(filesize) / 1024**3)
+```
+
+Check the cases on katmai:
+```{r}
+katmai_gbm_rna_tbl %>%
+    select(case, strand, UUID) %>%
+    spread(strand, UUID) %>%
+    left_join(case_tbl, by = 'case') %>%
+    count(in_discovery, in_single_shot, is_gdc_harmonized)
+```
+
+We should run these 60 tumor cases on katmai.
+
+Check the cases on MGI:
+```{r}
+mgi_gbm_rna_tbl %>%
+    select(case, strand, UUID) %>%
+    spread(strand, UUID) %>%
+    left_join(case_tbl, by = 'case') %>%
+    count(in_discovery, in_single_shot, is_gdc_harmonized)
+```
+
+We should run these 54 cases on MGI. And plus 10 GTEX normals (from 9 cases).
+
+```{r}
+mgi_gbm_rna_tbl %>%
+    distinct(case) %>%
+    write_lines('../tracked_results/rna_tumor_cases_on_MGI.list')
+```
+
+```{r}
+katmai_gbm_rna_tbl %>%
+    distinct(case) %>%
+    write_lines('../tracked_results/rna_tumor_cases_on_katmai.list')
+```
+

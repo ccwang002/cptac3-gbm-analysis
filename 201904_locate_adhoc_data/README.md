@@ -5,3 +5,4 @@ This project tries to pull alll the available genomic data together, despite the
 ## Notebooks
 1. `locate_all_gbm_samples.Rmd`: Locate all the available GBM cases
 2. `download_unharmonized_seq_data.Rmd`: Extract the UUID list of all unharmonized data
+3. `locate_gbm_rna_fqs.Rmd`: Locate the RNA-seq FASTQs of all GBM cases locally
