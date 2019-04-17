@@ -93,12 +93,14 @@ We should run these 54 cases on MGI. And plus 10 GTEX normals (from 9 cases).
 ```{r}
 mgi_gbm_rna_tbl %>%
     distinct(case) %>%
+    pull(case) %>%
     write_lines('../tracked_results/rna_tumor_cases_on_MGI.list')
 ```
 
 ```{r}
 katmai_gbm_rna_tbl %>%
     distinct(case) %>%
+    pull(case) %>%
     write_lines('../tracked_results/rna_tumor_cases_on_katmai.list')
 ```
 
