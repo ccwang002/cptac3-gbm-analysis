@@ -29,12 +29,19 @@ Link the CPTAC RNA-seq FASTQs from GDC by:
 
     snakemake link_cptac_gdc_rna_fastqs
 
-Run the gene quantification of all samples using all annotation sources by:
+To run the gene quantification of all CPTAC samples using all annotation
+sources, one will need to change the CPTAC case list `CPTAC_CASE_LIST_PTH` and
+`BAM_MAP_PTH` to run different cases on different machines. Then run:
 
-    snakemake salmon_quant_all_samples
+    snakemake salmon_quant_all_cptac_samples
 
+To run the gene quantifications of all GTEx samples, set the `GTEX_FASTQ_FOLDER`:
 
+    snakemake salmon_quant_all_gtex_samples
 
+The gene quantifications will be available at
+`processed_data/salmon_quants/{annotation_source}/{sample}/quant.sf`, where
+`annotation_source` can be `gencode_basic`, `gencode_comp`, or `ensembl`.
 
 
 ## Notebooks

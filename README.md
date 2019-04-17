@@ -37,6 +37,10 @@ git subtree pull --squash \
 Harmonize DNA-seq (WGS and WXS) ourselves from the raw sequencing data using
 the GDC workflow.
 
+### `201904_gene_quantification` on katmai and MGI
+Generate the transcript quantification (TPM) and gene-level expression of the
+cohort using Salmon.
+
 
 ## Discovery cohort
 ### `201901_locate_discovery_data` on denali
