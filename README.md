@@ -34,7 +34,8 @@ git subtree pull --squash \
 ### `201904_locate_adhoc_data` on denali
 
 ### `201904_harmonize_dna_seq` on MGI
-Harmonize DNA-seq (WGS and WXS) using similar commands used by GDC
+Harmonize DNA-seq (WGS and WXS) ourselves from the raw sequencing data using
+the GDC workflow.
 
 
 ## Discovery cohort
