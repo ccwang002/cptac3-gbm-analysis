@@ -182,6 +182,12 @@ rule picard_merge_readgroup_bams_of_one_sample:
         "2>{log} 1>&2"
 
 
+rule all_wxs_picard_merge_bams:
+    """Get re-aligned and merged BAMs of all WXS samples."""
+    input: bams=[f'processed_data/wxs_merged_bam/{sample}.bam' \
+                 for sample in all_wxs_samples]
+
+
 rule picard_mark_dup_one_sample:
     """Picard MarkDuplicates on one sample."""
     output:
