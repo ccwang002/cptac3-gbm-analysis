@@ -13,7 +13,7 @@ ALL_ANNOTATION_SOURCES = ['gencode_basic', 'gencode_comp', 'ensembl']
 # The difference between case and sample
 CPTAC_CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/rna_tumor_cases_on_MGI.list'
 GTEX_SAMPLES_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/gtex_normal_samples.list'
-GTEX_FASTQ_FOLDER = '/gscmnt/gc2541/cptac3_analysis/GTEx_RNA_fq'
+GTEX_FASTQ_FOLDER = 'external_data/GTEx_RNA_fq'
 
 # Build Salmon indices (GENCODE and Ensembl) {{{
 rule download_ensembl_ref:
