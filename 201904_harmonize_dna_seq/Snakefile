@@ -162,7 +162,8 @@ rule picard_merge_readgroup_bams_of_one_sample:
     input: readgroup_bams=get_readgroup_bams_of_one_sample
     params:
         input_bams_args=lambda wildcards, input: \
-            [f'I={pth}' for pth in input['readgroup_bams']]
+            [f'I={pth}' for pth in input['readgroup_bams']],
+        bsub_extra=f'-N -u {EMAIL}'
     threads: 4
     resources:
         mem_mb=8000
