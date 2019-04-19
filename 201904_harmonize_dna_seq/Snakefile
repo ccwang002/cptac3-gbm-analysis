@@ -40,8 +40,8 @@ with open(MGI_MAP_PTH) as f:
         bam_map[sample] = bam_pth
 # }}}
 
-# At the moment we only test for the first 20 cases
-all_wxs_samples = [f'{case}_{st}' for (case, st) in sorted(wxs_bam_map.keys())][:50]
+# Subset the samples here to run only a part of the samples
+all_wxs_samples = [f'{case}_{st}' for (case, st) in sorted(wxs_bam_map.keys())]
 
 
 rule link_all_unharmonized_bams:
