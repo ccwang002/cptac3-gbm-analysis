@@ -6,6 +6,8 @@ import uuid
 CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_cases.list'
 # Path to the sequencing file mapping from Matt's catalog
 MGI_MAP_PTH = '../matt_catalog/MGI.BamMap.dat'
+# Path to the output manifest file
+OUT_MANIFEST_PTH = '../201904_locate_adhoc_data/tracked_results/MGI.GBM_custom_wxs.BamMap.dat'
 
 # Read the list of all the unharmonized cases
 unharmonized_cases = set(open(CASE_LIST_PTH).read().splitlines())
@@ -46,7 +48,7 @@ columns = [
     '# sample_name', 'case', 'disease', 'experimental_strategy', 'sample_type',
     'data_path', 'filesize', 'data_format', 'reference', 'UUID', 'system'
 ]
-with open('processed_data/MGI.GBM_custom.BamMap.dat', 'w') as f:
+with open(OUT_MANIFEST_PTH, 'w') as f:
     writer = csv.writer(f, dialect='excel-tab')
     writer.writerow(columns)  # Write header
     for sample in all_wxs_samples:
