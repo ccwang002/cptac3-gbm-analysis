@@ -61,8 +61,13 @@ with open('processed_data/MGI.GBM_custom.BamMap.dat', 'w') as f:
         data_pth = Path(current_abs_pth,
                         'processed_data/wxs_mark_dup_bam',
                         f'{sample}.bam')
+        if not data_pth.exists():
+            print(f'{sample} does not have BAM!')
+            file_size = 0
+        else:
+            file_size = data_pth.stat().st_size
         data_id = str(uuid.uuid4())
         writer.writerow([
             sample_name, case, 'GBM', 'WXS', sample_type,
-            str(data_pth), '0', 'BAM', 'hg38-bobo', data_id, 'MGI',
+            str(data_pth), str(file_size), 'BAM', 'hg38-bobo', data_id, 'MGI',
         ])
