@@ -163,7 +163,8 @@ rule picard_merge_readgroup_bams_of_one_sample:
     params:
         input_bams_args=lambda wildcards, input: \
             [f'I={pth}' for pth in input['readgroup_bams']],
-        bsub_extra=f'-N -u {EMAIL}'
+        # Get notified if the jobs are taking forever to run 
+        # bsub_extra=f'-N -u {EMAIL}'
     threads: 4
     resources:
         mem_mb=8000
@@ -180,12 +181,6 @@ rule picard_merge_readgroup_bams_of_one_sample:
         "VALIDATION_STRINGENCY=STRICT "
         "TMP_DIR=$(mktemp -d --tmpdir tmp_picard.XXXXXXXXXXXXXXXX) "
         "2>{log} 1>&2"
-
-
-rule all_wxs_picard_merge_bams:
-    """Get re-aligned and merged BAMs of all WXS samples."""
-    input: bams=[f'processed_data/wxs_merged_bam/{sample}.bam' \
-                 for sample in all_wxs_samples]
 
 
 rule picard_mark_dup_one_sample:
@@ -212,7 +207,16 @@ rule picard_mark_dup_one_sample:
         "2>{log} 1>&2"
 
 
+rule copy_picard_bam_index:
+    output: 'processed_data/{seq_type}_mark_dup_bam/{sample}.bam.bai'
+    input: rules.picard_mark_dup_one_sample.output['bai']
+    shell:
+        "rsync -a {input} {output}"
+
+
 rule all_wxs_picard_mark_dup_bams:
     """Run Picard MarkDuplicates on all WXS samples."""
     input: bams=[f'processed_data/wxs_mark_dup_bam/{sample}.bam' \
+                 for sample in all_wxs_samples],
+           bais=[f'processed_data/wxs_mark_dup_bam/{sample}.bam.bai' \
                  for sample in all_wxs_samples]
