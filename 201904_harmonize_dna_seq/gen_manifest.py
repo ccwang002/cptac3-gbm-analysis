@@ -71,5 +71,5 @@ with open(OUT_MANIFEST_PTH, 'w') as f:
         data_id = str(uuid.uuid4())
         writer.writerow([
             sample_name, case, 'GBM', 'WXS', sample_type,
-            str(data_pth), str(file_size), 'BAM', 'hg38-bobo', data_id, 'MGI',
+            str(data_pth), str(file_size), 'BAM', 'hg38', data_id, 'MGI',
         ])
