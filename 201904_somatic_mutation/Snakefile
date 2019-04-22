@@ -1,0 +1,157 @@
+import csv
+from pathlib import Path
+from textwrap import dedent
+
+GDC_RAW_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt'
+GDC_ANNOTATED_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_annotated_vcfs_manifest.txt'
+GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse']
+SOMWRAP_MAF_PTH = 'external_data/gbm_60_cases_somatic.somaticwrapper_v1.3.maf.gz'
+TINDAISY_VCF_CUSTOM_HARMONIZED_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_tindaisy_vcfs.tsv'
+
+# Samples with GDC VCFs available
+GDC_SAMPLES = set()
+with open(GDC_ANNOTATED_VCF_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    GDC_SAMPLES = set(row['case ID'] for row in reader)
+
+# GDC {{{
+rule link_gdc_raw_vcfs:
+    """Link the raw GDC VCFs locally."""
+    input: manifest=GDC_RAW_VCF_MANIFEST
+    output: expand('external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
+    params:
+        vcf_root='/diskmnt/Projects/cptac_downloads/gdc_somatic_mutations/unversioned'
+    run:
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case ID']
+                caller = row['file_name'].split('.')[-4].lower()
+                src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
+                dst_pth = Path(f'external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz')
+                dst_pth.symlink_to(src_vcf_pth)
+
+
+rule link_gdc_annotated_vcfs:
+    """Link the annotated GDC VCFs locally."""
+    input: manifest=GDC_ANNOTATED_VCF_MANIFEST
+    output: expand('external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
+    params:
+        vcf_root='/diskmnt/Projects/cptac_downloads/gdc_somatic_mutations/unversioned'
+    run:
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case ID']
+                caller = row['file_name'].split('.')[-4].lower()
+                src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
+                dst_pth = Path(f'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz')
+                dst_pth.symlink_to(src_vcf_pth)
+
+
+rule annotated_vcf_to_maf:
+    """Convert one annotated GDC VCF to MAF."""
+    input: 'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz'
+    output:
+        uncompress_vcf=temp('processed_data/gdc_temp_vcfs/{sample}.{caller}.vcf'),
+        maf='processed_data/gdc_mafs/{sample}.{caller}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/gdc_mafs/{sample}.{caller}.maf'
+    shell:
+        dedent(r'''
+        gunzip -c {input} > {output.uncompress_vcf}
+        perl {params.vcf2maf} \
+            --input-vcf {output.uncompress_vcf} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.sample}_T --normal-id {wildcards.sample}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38
+        gzip -9 {params.uncompress_maf}
+        ''')
+# }}}
+
+# A map to remote TinDiasy VCFs
+case_to_remote_tindaisy_vcf = {}
+with open(TINDAISY_VCF_CUSTOM_HARMONIZED_PTH) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        case_to_remote_tindaisy_vcf[row['# case']] = row['result_path']
+
+# TinDaisy {{{
+rule download_tindaisy_vcf:
+    """Download TinDaisy VCFs."""
+    output: vcf='external_data/tindaisy_vcfs/{case}.vcf'
+    params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_vcf[wildcards.case]
+    shell:
+        "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
+
+
+rule convert_tindaisy_vcf_to_maf:
+    """Convert one annotated GDC VCF to MAF."""
+    input: 'external_data/tindaisy_vcfs/{case}.vcf'
+    output:
+        maf='processed_data/tindaisy_mafs/{case}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/tindaisy_mafs/{case}.maf'
+    shell:
+        dedent(r'''
+        perl {params.vcf2maf} \
+            --input-vcf {input} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.case}_T --normal-id {wildcards.case}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38
+        gzip -9 {params.uncompress_maf}
+        ''')
+# }}}
+
+
+rule add_gdc_mutation_to_db:
+    """Add GDC mutations (raw VCF and annotated MAF) to the database."""
+    input:
+        raw_vcfs=rules.link_gdc_raw_vcfs.output,
+        annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
+                              sample=GDC_SAMPLES, caller=GDC_CALLERS)
+    output: db='processed_data/gbm_mut_calls.sqlite',
+            db_state=touch('processed_data/db_state/0_added_gdc')
+    log: 'logs/db_add_gdc_mut.log'
+    script: 'scripts/add_gdc_maf.py'
+
+
+rule add_somwrap_mutation_to_db:
+    """Add SomaticWrapper mutations to the database."""
+    input:
+        maf=SOMWRAP_MAF_PTH,
+        prev_db_state=rules.add_gdc_mutation_to_db.output['db_state']
+    params:
+        db=rules.add_gdc_mutation_to_db.output['db']
+    output: db_state=touch('processed_data/db_state/1_added_somwrap')
+    log: 'logs/db_add_somwrap_mut.log'
+    script: 'scripts/add_somwrap_maf.py'
+
+
+rule add_tindaisy_one_maf:
+    """Add TinDaisy output of one GBM case into database."""
+    input:
+        maf=rules.convert_tindaisy_vcf_to_maf.output['maf'],
+        prev_db_state=rules.add_somwrap_mutation_to_db.output['db_state']
+    output: db_state=touch('processed_data/db_state/2_added_tindaisy_{case}')
+    params:
+        db=rules.add_gdc_mutation_to_db.output['db'],
+        db_table_name='tindaisy'
+    log: 'logs/db_add_tindaisy_mut/{case}.log'
+    script: 'scripts/add_maf_to_db.py'
+
+
+rule add_all_tindaisy_mafs:
+    """Add all TinDiasy outputs."""
+    input:
+        mafs=expand(rules.add_tindaisy_one_maf.output['db_state'], \
+                    case=case_to_remote_tindaisy_vcf.keys())
+    output:
+        db_state=touch('processed_data/gbm_db_state/2_added_td_all_cases')
+
