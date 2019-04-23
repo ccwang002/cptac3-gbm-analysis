@@ -6,8 +6,8 @@ Parse the beta values of the probes in the EPIC DNA methylation array. Then filt
 
 ```{r, message=FALSE}
 library(feather)
-library(tidyverse)
 library(SummarizedExperiment)
+library(tidyverse)
 ```
 
 
@@ -44,8 +44,8 @@ EPIC_hg19_anno[probes_not_in_manifest, ]
 
 ## Add sample annotation
 ```{r}
-sample_anno <- read_csv('../../201901_locate_discovery_data/annotations/Batch1through6_sample_attributes.csv.gz')
-case_list <- read_lines('../../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list')
+sample_anno <- read_csv('../../annotations/Batch1through8_sample_attributes.csv.gz')
+case_list <- read_tsv('../../201904_locate_adhoc_data/tracked_results/CPTAC3_GBM_all_cases.tsv')
 ```
 
 ```{r}
@@ -63,7 +63,7 @@ coldata_df <- sample_anno %>%
         is_tumor,
         primary_tumor_location
     ) %>%
-    filter(case %in% case_list) %>%
+    filter(case %in% case_list$case) %>%
     arrange(case) %>%
     column_to_rownames('sample') 
 coldata_df %>% head()
@@ -110,7 +110,7 @@ meth_se <- SummarizedExperiment(
     colData = coldata_df,
     assays = list(beta_val=meth_mat),
     metadata = list(
-        cohort = 'CPTAC3 GBM discovery cohort (incomplete)',
+        cohort = 'CPTAC3 GBM adhoc cohort (58 cases)',
         description = 'Beta values of DNA methylation probes from Illumina EPIC microarry',
         pipeline = str_c(
             'Based on the Bioconductor workflow methylationArrayAnalysis. ',
@@ -130,6 +130,12 @@ meth_se <- SummarizedExperiment(
 
 ```{r}
 saveRDS(meth_se, '../processed_data/gbm_dna_meth.rds')
+```
+
+```{r}
+coldata_df %>%
+    pull(case) %>%
+    write_lines('../processed_data/cases_with_dna_meth.list')
 ```
 
 
