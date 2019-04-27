@@ -43,6 +43,9 @@ with open(MGI_MAP_PTH) as f:
 # Subset the samples here to run only a part of the samples
 all_wxs_samples = [f'{case}_{st}' for (case, st) in sorted(wxs_bam_map.keys())]
 
+# Subset the samples here to run only a part of the samples
+all_wgs_samples = [f'{case}_{st}' for (case, st) in sorted(wgs_bam_map.keys())]
+
 
 rule link_all_unharmonized_bams:
     """Link all unharmonized WXS BAMs."""
@@ -51,9 +54,13 @@ rule link_all_unharmonized_bams:
         wxs_bams=[f'external_data/unharmonized_wxs/{case}_{sample_type}.bam' \
                   for (case, sample_type) in wxs_bam_map],
         wxs_bais=[f'external_data/unharmonized_wxs/{case}_{sample_type}.bam.bai' \
-                  for (case, sample_type) in wxs_bam_map]
+                  for (case, sample_type) in wxs_bam_map],
+        wgs_bams=[f'external_data/unharmonized_wgs/{case}_{sample_type}.bam' \
+                  for (case, sample_type) in wgs_bam_map],
+        wgs_bais=[f'external_data/unharmonized_wgs/{case}_{sample_type}.bam.bai' \
+                  for (case, sample_type) in wgs_bam_map]
     run:
-        for seq_type, bam_map in [('wxs', wxs_bam_map)]:
+        for seq_type, bam_map in [('wxs', wxs_bam_map), ('wgs', wgs_bam_map)]:
             for (case, sample_type), bam_src_pth in bam_map.items():
                 # Link BAM
                 bam_dst_pth = Path(f'external_data/unharmonized_{seq_type}/{case}_{sample_type}.bam')
@@ -90,13 +97,6 @@ checkpoint bam_to_fastqs:
         'outputperreadgroupsuffixO2=_o2.fq.gz '
         'outputperreadgroupsuffixS=_s.fq.gz '
         '2>{log} 1>&2'
-
-
-rule all_wxs_fastqs:
-    """Export all WXS BAMs as FASTQs."""
-    input:
-        all_wxs_fq_folders=expand('processed_data/wxs_fqs/{sample}', \
-                                  sample=all_wxs_samples, strand=['r1', 'r2'])
 
 
 def get_readgroups_of_one_sample(wildcards):
@@ -163,7 +163,7 @@ rule picard_merge_readgroup_bams_of_one_sample:
     params:
         input_bams_args=lambda wildcards, input: \
             [f'I={pth}' for pth in input['readgroup_bams']],
-        # Get notified if the jobs are taking forever to run 
+        # Get notified if the jobs are taking forever to run
         # bsub_extra=f'-N -u {EMAIL}'
     threads: 4
     resources:
@@ -214,9 +214,32 @@ rule copy_picard_bam_index:
         "rsync -a {input} {output}"
 
 
+rule all_wxs_fastqs:
+    """Export all WXS BAMs as FASTQs."""
+    input:
+        all_wxs_fq_folders=expand('processed_data/wxs_fqs/{sample}', \
+                                  sample=all_wxs_samples, strand=['r1', 'r2'])
+
+
 rule all_wxs_picard_mark_dup_bams:
     """Run Picard MarkDuplicates on all WXS samples."""
     input: bams=[f'processed_data/wxs_mark_dup_bam/{sample}.bam' \
                  for sample in all_wxs_samples],
            bais=[f'processed_data/wxs_mark_dup_bam/{sample}.bam.bai' \
                  for sample in all_wxs_samples]
+
+
+rule all_wgs_fastqs:
+    """Export all WGS BAMs as FASTQs."""
+    input:
+        all_wgs_fq_folders=expand('processed_data/wgs_fqs/{sample}', \
+                                  sample=all_wgs_samples, strand=['r1', 'r2'])
+
+
+rule all_wgs_picard_mark_dup_bams:
+    """Run Picard MarkDuplicates on all WGS samples."""
+    input: bams=[f'processed_data/wgs_mark_dup_bam/{sample}.bam' \
+                 for sample in all_wgs_samples],
+           bais=[f'processed_data/wgs_mark_dup_bam/{sample}.bam.bai' \
+                 for sample in all_wgs_samples]
+
