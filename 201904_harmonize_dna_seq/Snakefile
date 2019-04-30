@@ -108,6 +108,15 @@ def get_readgroups_of_one_sample(wildcards):
     return sorted(all_readgroups)
 
 
+def calc_required_memory(wildcards, attempt):
+    if wildcards.seq_type == 'wxs':
+        # WXS works fine with 8GB of RAM
+        return 8000 + 4000 * (attempt - 1)
+    else:
+        # WGS might work with 16GB of RAM
+        return 16000 + 8000 * (attempt - 1)
+
+
 rule bwa_align_one_readgroup_fastq:
     """BWA MEM alignemnt of one readgroup FASTQs."""
     output: bam=temp('processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.bam')
@@ -116,7 +125,7 @@ rule bwa_align_one_readgroup_fastq:
         r2_fq='processed_data/{seq_type}_fqs/{sample}/{rg}_2.fq.gz'
     threads: 4
     resources:
-        mem_mb=8000
+        mem_mb=calc_required_memory
     shell:
         dedent("""
         bwa mem \
@@ -126,13 +135,14 @@ rule bwa_align_one_readgroup_fastq:
         | samtools view -Shb -o {output.bam} -
         """)
 
+
 rule picard_sort_one_readgroup_bam:
     """Picard sort one readgroup BAM."""
     output: bam=temp('processed_data/{seq_type}_readgroup_bam/{sample}/{rg}.sorted.bam')
     input: bam=rules.bwa_align_one_readgroup_fastq.output['bam']
     threads: 2
     resources:
-        mem_mb=8000
+        mem_mb=calc_required_memory
     log: 'logs/picard_sort_rg_bam/{seq_type}/{sample}/{rg}.log'
     shell:
         "picard -Xmx{resources.mem_mb}m SortSam "
@@ -167,7 +177,7 @@ rule picard_merge_readgroup_bams_of_one_sample:
         # bsub_extra=f'-N -u {EMAIL}'
     threads: 4
     resources:
-        mem_mb=8000
+        mem_mb=calc_required_memory
     log: 'logs/picard_merge_bams/{seq_type}/{sample}.log'
     shell:
         "picard -Xmx{resources.mem_mb}m MergeSamFiles "
@@ -194,7 +204,7 @@ rule picard_mark_dup_one_sample:
         bai=rules.picard_merge_readgroup_bams_of_one_sample.output['merged_bai']
     threads: 4
     resources:
-        mem_mb=48000
+        mem_mb=lambda wildcards, attempt: 48000 + 8000 * (attempt - 1)
     params:
         bsub_extra=f'-N -u {EMAIL}'
     log: 'logs/picard_mark_dup/{seq_type}/{sample}.log'
