@@ -53,12 +53,15 @@ else:
 # Add rule-specific LSF parameters (e.g. queue, runtime)
 cmdline += props["params"].get("bsub_extra", "") + " "
 
-# figure out job dependencies
-dep_job_ids = sys.argv[1:-2]
-if dep_job_ids:
-    # Create the LSF dependency expression
-    dep_expr = " && ".join(dep_job_ids)
-    cmdline += f"-w '{dep_expr}' "
+# We don't add any job dependencies as this introduce unneccesary racing
+# condition that will randomly fail LSF/bsub job creation. The job dependency
+# is not required as now the snakamake master process will keep running in the
+# queue.
+# dep_job_ids = sys.argv[1:-2]
+# if dep_job_ids:
+#     # Create the LSF dependency expression
+#     dep_expr = " && ".join(dep_job_ids)
+#     cmdline += f"-w '{dep_expr}' "
 
 # the actual job
 cmdline += jobscript
