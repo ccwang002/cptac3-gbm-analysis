@@ -177,7 +177,7 @@ rule picard_merge_readgroup_bams_of_one_sample:
         # bsub_extra=f'-N -u {EMAIL}'
     threads: 4
     resources:
-        mem_mb=calc_required_memory
+        mem_mb=8000  # Merging sorted BAMs only takes <1GB of memory
     log: 'logs/picard_merge_bams/{seq_type}/{sample}.log'
     shell:
         "picard -Xmx{resources.mem_mb}m MergeSamFiles "
