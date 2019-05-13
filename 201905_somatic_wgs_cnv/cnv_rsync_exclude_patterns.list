@@ -1,0 +1,4 @@
+log
+tmp
+*.tar.gz
+*.seg-config.txt
