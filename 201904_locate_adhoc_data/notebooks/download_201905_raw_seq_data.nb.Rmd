@@ -1,0 +1,83 @@
+---
+title: "Download unharmonized data again (2019.05)"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+case_tbl <- read_tsv('../tracked_results/CPTAC3_GBM_all_cases.tsv')
+case_tbl %>% head()
+```
+
+GDC does not have any GTEx normal sequenced yet
+```{r}
+need_unharmonized_cases <- case_tbl %>%
+    filter(is_gdc_harmonized == FALSE,
+           is_gtex_normal == FALSE) %>%
+    pull(case)
+```
+
+```{r}
+need_unharmonized_cases
+```
+
+## Build the sequencing data availability from Matt's catelog
+```{r}
+gbm_seq_data <- read_tsv(
+    '../../matt_catalog/CPTAC3.AR.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(case %in% need_unharmonized_cases) 
+```
+
+Filter out the raw sequence data that's been downloaded on MGI:
+```{r}
+mgi_bam_map_tbl <- read_tsv(
+    '../../matt_catalog/MGI.BamMap.dat',
+     col_types = cols(.default = col_character(), filesize = col_double())
+)
+```
+
+
+Basic sample count
+```{r}
+unharmonized_data <- bind_rows(
+    # WGS and WXS
+    gbm_seq_data %>% 
+        filter(reference == 'hg19', data_format == 'BAM'),
+    # RNA-seq
+    gbm_seq_data %>% 
+        filter(experimental_strategy == 'RNA-Seq', data_format == 'FASTQ') %>%
+        extract(sample_name, 'strand', 'RNA-Seq\\.(R[12])',  remove = FALSE)
+)
+```
+
+```{r}
+unharmonized_data %>%
+    count(experimental_strategy, sample_type, strand)
+```
+
+```{r}
+bam_to_download_tbl <- unharmonized_data %>%
+    filter(!UUID %in% mgi_bam_map_tbl$UUID) 
+
+bam_to_download_tbl %>%
+    count(experimental_strategy, sample_type, strand)
+```
+
+```{r}
+bam_to_download_tbl %>%
+    pull(UUID) %>% 
+    write_lines('~/Downloads/gbm_hg19_bams_to_download_UUIDs.list')
+```
+
+```{r}
+bam_to_download_tbl %>%
+    select(-strand) %>%
+    write_tsv('~/Downloads/gbm_hg19_bams_to_download_manifest.tsv')
+```
+
