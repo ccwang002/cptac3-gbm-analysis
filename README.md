@@ -29,6 +29,10 @@ git subtree pull --squash \
 `annotations` is a folder storing commonly used genomic anotations by the projects.
 
 
+## Consolidating discovery cohort
+### `201907_locate_data` on denali
+
+
 
 ## Ad-hoc cohort
 ### `201904_locate_adhoc_data` on denali
@@ -52,7 +56,7 @@ Collect the somatic CNV calls from WGS.
 
 ## Discovery cohort
 ### `201901_locate_discovery_data` on denali
-Locate the up-to-date GDC and proteomic data relaese of the discovery cohort
+Locate the up-to-date GDC and proteomic data release of the discovery cohort
 and the local file maps on denali, katmai, and MGI.
 
 

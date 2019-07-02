@@ -1,0 +1,110 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+cohort_seq_tbl <- read_tsv('../tracked_results/cptac3_gbm_seq_status.tsv')
+```
+
+
+```{r}
+gbm_seq_data <- read_tsv(
+    '../../matt_catalog/CPTAC3.AR.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(disease == 'GBM') 
+```
+
+```{r}
+bam_maps <- list.files('../../matt_catalog', '.*.BamMap.dat$', full.names = TRUE) %>%
+    set_names(str_match(., '.*/([^.]+).BamMap.dat$')[, 2]) %>%
+    map(function(pth) {
+        read_tsv(pth, col_types = cols(.default = col_character(), filesize = col_double())) %>%
+            rename(sample_name = `# sample_name`) %>%
+            filter(disease == 'GBM')
+    })
+```
+
+## Download the RNA-seq to MGI
+```{r}
+cases_with_rna_processed <- read_lines('../cases_with_rna_processed.list') %>%
+    setdiff('C3N-01850')
+```
+
+```{r}
+rna_to_download <- gbm_seq_data %>%
+    filter(experimental_strategy == 'RNA-Seq', data_format == 'FASTQ',
+           !case %in% cases_with_rna_processed)
+```
+
+```{r}
+cohort_seq_tbl %>%
+    filter(case %in% rna_to_download$case)
+```
+
+
+## Download WGS to MGI
+```{r}
+cases_with_gdc_wgs <- cohort_seq_tbl %>% filter(has_wgs_normal_gdc) %>% 
+    pull(case) %>% unique()
+
+washu_wgs_bam_map <- read_tsv(
+    '../../201904_locate_adhoc_data/tracked_results/MGI.GBM_custom_wgs.BamMap.dat',
+     col_types = cols(.default = col_character(), filesize = col_double())
+)
+```
+
+```{r}
+washu_wgs_bam_map
+```
+
+
+```{r}
+wgs_to_download <- gbm_seq_data %>%
+    filter(experimental_strategy == 'WGS', data_format == 'BAM', reference == 'hg19', 
+           !case %in% cases_with_gdc_wgs) %>%
+    anti_join(washu_wgs_bam_map, by = c('case', 'sample_type'))
+```
+
+
+## Download WXS to MGI
+```{r}
+cases_with_gdc_wxs <- cohort_seq_tbl %>% filter(has_wxs_normal_gdc) %>% 
+    pull(case) %>% unique()
+
+washu_wxs_bam_map <- read_tsv(
+    '../../201904_locate_adhoc_data/tracked_results/MGI.GBM_custom_wxs.BamMap.dat',
+     col_types = cols(.default = col_character(), filesize = col_double())
+)
+```
+
+```{r}
+wxs_to_download <- gbm_seq_data %>%
+    filter(experimental_strategy == 'WXS', data_format == 'BAM', reference == 'hg19', 
+           !case %in% cases_with_gdc_wxs) %>%
+    anti_join(washu_wxs_bam_map, by = c('case', 'sample_type'))
+```
+
+
+```{r}
+files_to_download <- bind_rows(
+    rna_to_download,
+    wgs_to_download,
+    wxs_to_download
+)
+files_to_download %>% 
+    group_by(experimental_strategy) %>%
+    summarize(filesize_GB = round(sum(filesize) / (2 ** 30), 1))
+```
+
+```{r}
+files_to_download %>%
+    write_tsv('../tracked_results/gdc_seq_files_to_download.tsv.gz')
+```
+

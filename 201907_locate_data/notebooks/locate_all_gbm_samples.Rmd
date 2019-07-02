@@ -1,0 +1,128 @@
+---
+title: "Locate all GBM samples with sequencing data or in discovery cohort"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+Build the sequencing data availability from Matt's catelog
+```{r}
+gbm_seq_tbl <- read_tsv('../../matt_catalog/CPTAC3.AR.dat') %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(disease == 'GBM') 
+```
+
+```{r}
+gdc_cases <- gbm_seq_tbl %>% pull(case) %>% unique()
+gdc_cases %>% length()
+```
+
+```{r}
+discovery_cases <- read_lines('../../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list')
+single_shot_cases <- read_lines('../../201904_locate_adhoc_data/201901_single_shot_cases.list')
+all_gbm_cases <- gdc_cases %>%
+    union(discovery_cases) %>%
+    union(single_shot_cases)
+length(all_gbm_cases)
+```
+
+GBM cases not available on GDC
+```{r}
+setdiff(single_shot_cases, gdc_cases)
+```
+
+Read GTEx normal cases with RNA-seq 
+```{r}
+gtex_cases_with_rna <- read_lines('../../201904_locate_adhoc_data/tracked_results/gtex_normal_samples.list') %>%
+    str_sub(end = 9)
+```
+
+
+
+```{r}
+cohort_seq_tbl <- tibble(case = all_gbm_cases) %>%
+    mutate(
+        cancer_type = 'GBM',
+        in_discovery = case %in% discovery_cases,
+        is_gtex_normal = startsWith(case, 'PT-'),
+        in_single_shot = case %in% single_shot_cases
+    ) %>%
+    arrange(case)
+```
+
+```{r}
+gbm_seq_tbl %>%
+    count(experimental_strategy, data_format, reference, sample_type)
+```
+
+
+
+Determine the WXS, WGS status
+```{r}
+get_seq_case_by_filter <- function(...) {
+    gbm_seq_tbl %>%
+        filter(...) %>%
+        pull(case)
+}
+
+cohort_seq_tbl <- cohort_seq_tbl %>%
+    mutate(
+        # WGS
+        has_wgs_tumor_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WGS', data_format == 'BAM',
+            reference == 'hg19', sample_type == 'tumor'
+        ),
+        has_wgs_normal_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WGS', data_format == 'BAM',
+            reference == 'hg19', sample_type == 'blood_normal'
+        ),
+        has_wgs_tumor_gdc = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WGS', data_format == 'BAM',
+            reference == 'hg38', sample_type == 'tumor'
+        ),
+        has_wgs_normal_gdc = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WGS', data_format == 'BAM',
+            reference == 'hg38', sample_type == 'blood_normal'
+        ),
+        # WXS
+        has_wxs_tumor_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WXS', data_format == 'BAM',
+            reference == 'hg19', sample_type == 'tumor'
+        ),
+        has_wxs_normal_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WXS', data_format == 'BAM',
+            reference == 'hg19', sample_type == 'blood_normal'
+        ),
+        has_wxs_tumor_gdc = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WXS', data_format == 'BAM',
+            reference == 'hg38', sample_type == 'tumor'
+        ),
+        has_wxs_normal_gdc = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'WXS', data_format == 'BAM',
+            reference == 'hg38', sample_type == 'blood_normal'
+        ),
+        # RNA 
+        has_rna_tumor_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'RNA-Seq', data_format == 'FASTQ',
+            sample_type == 'tumor'
+        ),
+        has_rna_normal_raw = case_when(
+            startsWith(case, 'PT-') ~ 
+                str_replace(case, 'PT-', 'GTEX-') %in% gtex_cases_with_rna,
+            TRUE ~ FALSE
+        ),
+        # miRNA 
+        has_mirna_tumor_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'miRNA-Seq', data_format == 'FASTQ',
+            sample_type == 'tumor'
+        )
+    )
+```
+
+```{r}
+cohort_seq_tbl %>%
+    write_tsv('../tracked_results/cptac3_gbm_seq_status.tsv')
+```
+
