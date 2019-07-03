@@ -130,7 +130,7 @@ rule download_tindaisy_raw_merged_filterd_vcf:
 
 
 rule convert_tindaisy_vcf_to_maf:
-    """Convert one annotated GDC VCF to MAF."""
+    """Convert annotated TinDaisy VCF to MAF."""
     input: 'external_data/tindaisy_vcfs/{case}.vcf'
     output:
         maf='processed_data/tindaisy_mafs/{case}.maf.gz'
@@ -139,6 +139,8 @@ rule convert_tindaisy_vcf_to_maf:
         # VEP and validate the reference genome (and hence faster)
         vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
         uncompress_maf='processed_data/tindaisy_mafs/{case}.maf'
+    wildcard_constraints:
+        case='[^.]+'
     shell:
         dedent(r'''
         perl {params.vcf2maf} \
@@ -148,18 +150,36 @@ rule convert_tindaisy_vcf_to_maf:
             --filter-vcf 0 --ncbi-build GRCh38
         gzip -9 {params.uncompress_maf}
         ''')
+
+
+rule convert_tindaisy_raw_vcf_to_maf:
+    """Convert raw TinDaisy VCF to MAF."""
+    input: 'external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
+    output:
+        maf='processed_data/tindaisy_raw_mafs/{raw_type}/{case}.{raw_type}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/tindaisy_raw_mafs/{raw_type}/{case}.{raw_type}.maf'
+    shell:
+        dedent(r'''
+        perl {params.vcf2maf} \
+            --input-vcf {input} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.case}_T --normal-id {wildcards.case}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38 >/dev/null 2>/dev/null
+        gzip -9 {params.uncompress_maf}
+        ''')
 # }}}
 
 
 rule all_raw_tindaisy_mafs:
     """All TinDiasy raw outputs in MAF."""
-    input:
-        raw_merged_mafs=expand( \
-            rules.convert_tindaisy_vcf_to_maf.output['maf'], \
-            case=[f'{c}.raw_merged' for c in case_to_remote_tindaisy_vcf.keys()]),
-        raw_merged_filtered_mafs=expand( \
-            rules.convert_tindaisy_vcf_to_maf.output['maf'], \
-            case=[f'{c}.raw_merged_filtered' for c in case_to_remote_tindaisy_vcf.keys()])
+    input: expand( \
+        rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
+        case=case_to_remote_tindaisy_vcf.keys(), \
+        raw_type=['raw_merged', 'raw_merged_filtered'])
 
 
 rule add_gdc_mutation_to_db:
