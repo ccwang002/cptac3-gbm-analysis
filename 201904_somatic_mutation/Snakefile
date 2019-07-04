@@ -159,7 +159,7 @@ rule convert_tindaisy_vcf_to_maf:
 rule vep_annotate_vcf:
     """Annotate VCF using VEP."""
     input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
-    output: vcf='processed_data/tindaisy_raw_vcfs/{case}.{raw_type}.vep_v90.vcf'
+    output: vcf='processed_data/tindaisy_raw_annotated_vcfs/{case}.{raw_type}.vep_v90.vcf'
     params:
         vep_cache=VEP_CACHE_ROOT,
         buffer_size=5000
@@ -168,12 +168,15 @@ rule vep_annotate_vcf:
     shell:
         # Match the VEP parameters used by TinDaisy (VEP cache version is 90)
         # https://github.com/ding-lab/TinDaisy/blob/master/cwl/tools/vep_annotate.cwl
+        # Due to the SV annotation bug, we use a newer VEP tool on the old cache
+        # Ref: https://github.com/Ensembl/ensembl-vep/issues/227
         dedent(r'''
         docker run -i --rm -u $(id -u):$(id -g)     \
             -v {params.vep_cache}:/home/vep/.vep    \
             -v $PWD:/project_root                   \
-            ensemblorg/ensembl-vep:release_90.10     \
+            ensemblorg/ensembl-vep:release_96.3     \
                 vep --cache --offline --vcf --no_stats --quiet              \
+                    --cache_version 90 --dir_cache /home/vep/.vep           \
                     --assembly GRCh38                                       \
                     --fork {threads} --buffer_size {params.buffer_size}     \
                     --hgvs --shift_hgvs 1 --no_escape   \
@@ -186,7 +189,6 @@ rule vep_annotate_vcf:
                     -i /project_root/{input.vcf}                            \
                     -o /project_root/{output.vcf}                           \
                     --warning_file /project_root/{log}
-                2>/dev/null
         ''')
 
 
@@ -194,12 +196,12 @@ rule convert_tindaisy_raw_vcf_to_maf:
     """Convert raw TinDaisy VCF to MAF."""
     input: rules.vep_annotate_vcf.output['vcf']
     output:
-        maf='processed_data/tindaisy_raw_mafs/{raw_type}/{case}.{raw_type}.maf.gz'
+        maf='processed_data/tindaisy_raw_annotated_mafs/{raw_type}/{case}.{raw_type}.maf.gz'
     params:
         # The vcf2maf here is a hacked script that removed the ability to launch
         # VEP and validate the reference genome (and hence faster)
         vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
-        uncompress_maf='processed_data/tindaisy_raw_mafs/{raw_type}/{case}.{raw_type}.maf'
+        uncompress_maf='processed_data/tindaisy_raw_annotated_mafs/{raw_type}/{case}.{raw_type}.maf'
     shell:
         dedent(r'''
         perl {params.vcf2maf} \
@@ -213,7 +215,7 @@ rule convert_tindaisy_raw_vcf_to_maf:
 
 
 rule all_raw_tindaisy_mafs:
-    """All TinDiasy raw outputs in MAF."""
+    """All TinDiasy raw outputs in annotated MAF."""
     input: expand( \
         rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
         case=case_to_remote_tindaisy_vcf.keys(), \
