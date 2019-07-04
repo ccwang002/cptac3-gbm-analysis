@@ -10,11 +10,14 @@ SOMWRAP_MAF_PTH = 'external_data/gbm_60_cases_somatic.somaticwrapper_v1.3.maf.gz
 TINDAISY_VCF_CUSTOM_HARMONIZED_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_tindaisy_vcfs.tsv'
 TINDAISY_VCF_HARMONIZED_PTH = '../201904_locate_adhoc_data/tracked_results/harmonized_tindaisy_vcfs.tsv'
 
+VEP_CACHE_ROOT='/diskmnt/Datasets/VEP'
+
 # Samples with GDC VCFs available
 GDC_SAMPLES = set()
 with open(GDC_ANNOTATED_VCF_MANIFEST) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
     GDC_SAMPLES = set(row['case ID'] for row in reader)
+
 
 # GDC {{{
 rule link_gdc_raw_vcfs:
@@ -73,6 +76,7 @@ rule annotated_vcf_to_maf:
         gzip -9 {params.uncompress_maf}
         ''')
 # }}}
+
 
 # A map to remote TinDaisy VCFs
 case_to_remote_tindaisy_vcf = {}
@@ -152,9 +156,43 @@ rule convert_tindaisy_vcf_to_maf:
         ''')
 
 
+rule vep_annotate_vcf:
+    """Annotate VCF using VEP."""
+    input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
+    output: vcf='processed_data/tindaisy_raw_vcfs/{case}.{raw_type}.vep_v90.vcf'
+    params:
+        vep_cache=VEP_CACHE_ROOT,
+        buffer_size=5000
+    log: 'logs/tindaisy_raw_vep/{case}.{raw_type}.vep.log'
+    threads: 4
+    shell:
+        # Match the VEP parameters used by TinDaisy (VEP cache version is 90)
+        # https://github.com/ding-lab/TinDaisy/blob/master/cwl/tools/vep_annotate.cwl
+        dedent(r'''
+        docker run -i --rm -u $(id -u):$(id -g)     \
+            -v {params.vep_cache}:/home/vep/.vep    \
+            -v $PWD:/project_root                   \
+            ensemblorg/ensembl-vep:release_90.10     \
+                vep --cache --offline --vcf --no_stats --quiet              \
+                    --assembly GRCh38                                       \
+                    --fork {threads} --buffer_size {params.buffer_size}     \
+                    --hgvs --shift_hgvs 1 --no_escape   \
+                    --symbol --numbers --ccds --uniprot --xref_refseq       \
+                    --sift b --tsl --canonical          \
+                    --total_length --allele_number      \
+                    --variant_class --biotype           \
+                    --flag_pick_allele                  \
+                    --pick_order tsl,biotype,rank,canonical,ccds,length     \
+                    -i /project_root/{input.vcf}                            \
+                    -o /project_root/{output.vcf}                           \
+                    --warning_file /project_root/{log}
+                2>/dev/null
+        ''')
+
+
 rule convert_tindaisy_raw_vcf_to_maf:
     """Convert raw TinDaisy VCF to MAF."""
-    input: 'external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
+    input: rules.vep_annotate_vcf.output['vcf']
     output:
         maf='processed_data/tindaisy_raw_mafs/{raw_type}/{case}.{raw_type}.maf.gz'
     params:
