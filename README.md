@@ -29,11 +29,15 @@ git subtree pull --squash \
 `annotations` is a folder storing commonly used genomic anotations by the projects.
 
 
+
 ## Consolidating discovery cohort
+### `201907_locate_data` on denali
+
 ### `201907_tcga_gbm_gene_quantification` on MGI
 Using the same Salmon pipeline to process TCGA GBM BAMs.
 
-### `201907_locate_data` on denali
+### `201907_gdc_rnaseq_counts` locally
+Download GDC RNA-Seq count files for both TCGA and CPTAC GBM samples.
 
 
 
