@@ -1,6 +1,6 @@
 # 201907_tcga_gbm_gene_quantification
 
-Using the following GDC query:
+The files under `tcga_gbm_gdc_manifest` were generated on GDC Portal using the following query:
 
     cases.project.project_id in ["TCGA-GBM"]
     and files.analysis.metadata.read_groups.read_length >= 76
