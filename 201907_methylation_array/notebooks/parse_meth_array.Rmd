@@ -1,0 +1,157 @@
+---
+title: "Parse CPTAC methylation array"
+output: html_notebook
+---
+Parse the beta values of the probes in the EPIC DNA methylation array. Then filter out some low confident probes and subset the samples to be discovery cohort only.
+
+```{r, message=FALSE}
+library(feather)
+library(SummarizedExperiment)
+library(tidyverse)
+```
+
+Read the beta values per probe
+```{r}
+meth_tbl <- read_feather('../processed_data/cptac3_gbm_epic_meth_array.batch1-9.feather')
+```
+
+Read EPIC methylation array hg38 manifest and annotaiton from <https://zwdzwd.github.io/InfiniumAnnotation>
+```{r}
+# Details about the probe design
+EPIC_manifest <- readRDS('../external_data/EPIC.hg38.manifest.rds')
+# Annotation
+EPIC_anno <- readRDS('../external_data/EPIC.hg38.manifest.gencode.v22.rds')
+```
+
+
+## Add sample annotation
+```{r}
+sample_anno <- read_tsv('../../annotations/Batches1through9_samples_attribute.with_disease_code.tsv.gz')
+cohort_tbl <- read_tsv('../../201907_locate_data/tracked_results/cptac3_gbm_seq_status.tsv')
+```
+
+```{r}
+coldata_df <- sample_anno %>%
+    filter(SAMPLE_ID %in% colnames(meth_tbl)[-1]) %>%
+    mutate(
+        is_tumor = IS_TUMOR == 'Y',
+        cancer_type = 'GBM',
+        primary_tumor_location = factor(PRIMARY_TUMOR_LOCATION)
+    ) %>%
+    select(
+        sample=SAMPLE_ID,
+        case=SUBJECT_ID,
+        cancer_type,
+        is_tumor,
+        primary_tumor_location
+    ) %>%
+    filter(case %in% cohort_tbl$case) %>%
+    arrange(case)
+coldata_df %>% head()
+```
+
+C3N-01850 has two arrays:
+```{r}
+coldata_df %>% 
+    count(case, sort = TRUE) %>%
+    filter(n > 1)
+
+coldata_df %>%
+    filter(case == 'C3N-01850')
+```
+
+A quick correlation between the two arrays
+```{r}
+meth_tbl.C3N_01850 <-  meth_tbl %>%
+    select(CPT0125260005, CPT0125270009)
+```
+
+```{r}
+cor(meth_tbl.C3N_01850$CPT0125260005, meth_tbl.C3N_01850$CPT0125270009,
+    use = 'complete.obs')
+cor(meth_tbl.C3N_01850$CPT0125260005, meth_tbl.C3N_01850$CPT0125270009,
+    use = 'complete.obs', method = 'spearman')
+```
+
+```{r, fig.width=7, fig.height=5}
+ggplot(meth_tbl.C3N_01850, aes(x = CPT0125260005, y = CPT0125270009)) + 
+    geom_bin2d(bins = 50) + 
+    coord_fixed()
+```
+
+Remove the old array for the sample with duplicates
+```{r}
+coldata_df <- coldata_df %>%
+    filter(sample != 'CPT0125260005') %>%
+    column_to_rownames('case')
+
+coldata_df %>% head()
+```
+
+
+## Use the masked probes
+Number of probes before filtering
+```{r}
+nrow(meth_tbl)
+```
+
+Select only probes not masked
+```{r}
+selected_probes <- intersect(meth_tbl$index, EPIC_manifest %>% subset(!MASK_general) %>% names())
+length(selected_probes)
+```
+
+Convert the methylation array to a matrix
+```{r}
+meth_mat <- meth_tbl %>%
+    filter(index %in% selected_probes) %>%
+    column_to_rownames('index') %>% 
+    as.matrix()
+
+meth_mat <- meth_mat[, coldata_df$sample]
+colnames(meth_mat) <- rownames(coldata_df)
+dim(meth_mat)
+```
+
+```{r}
+selected_anno_gr <- EPIC_anno[selected_probes, ]
+```
+
+
+## Create a SummarizedExperiment object
+```{r}
+meth_se <- SummarizedExperiment(
+    rowRanges = selected_anno_gr,
+    colData = coldata_df,
+    assays = list(beta_val=meth_mat),
+    metadata = list(
+        cohort = 'CPTAC3 GBM adhoc cohort (batch 1 to 9)',
+        description = 'Beta values of Illumina EPIC DNA methylation microarry',
+        pipeline = str_c(
+            'Based on the hg38 aligned data from Ding Lab CPTAC methylation pipeline v1.1 ',
+            'at https://github.com/ding-lab/cptac_methylation. ',
+            'Probes were further filtered, keeping MASK_general == FALSE probes based on the annotation ',
+            'from http://zwdzwd.io/InfiniumAnnotation/20180909/EPIC/EPIC.hg38.manifest.rds. ',
+            'More information about the annotation ',
+            'at https://zwdzwd.github.io/InfiniumAnnotation (DOI: 10.1093/nar/gkw967)'
+        ),
+        annotation = str_c(
+            'Based on GENCODE v22 ',
+            'from http://zwdzwd.io/InfiniumAnnotation/20180909/EPIC/EPIC.hg38.manifest.gencode.v22.rds'
+        ),
+        contact = 'Wen-Wei Liang <liang.w@wustl.edu>, Liang-Bo Wang <liang-bo.wang@wustl.edu>'
+    )
+)
+```
+
+```{r}
+saveRDS(meth_se, '../processed_data/gbm_dna_meth.batch1-9.rds')
+```
+
+```{r}
+coldata_df %>%
+    rownames() %>%
+    write_lines('../processed_data/cases_with_dna_meth.list')
+```
+
+
