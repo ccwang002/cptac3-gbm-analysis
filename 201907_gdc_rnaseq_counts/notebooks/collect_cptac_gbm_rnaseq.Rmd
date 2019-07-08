@@ -1,0 +1,303 @@
+---
+title: "Collect CPTAC GBM RNA-seq counts"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(GenomicFeatures)
+library(SummarizedExperiment)
+library(tidyverse)
+```
+
+```{r}
+GDC_SEQINFO_PTH = '../../annotations/seqinfo_GRCh38.d1.vd1.rds'
+GDC_GENE_ANNOTATION_PTH = '../../annotations/gencode.gene.info.v22.tsv'
+CPTAC_GDC_MANIFEST_PTH = '../cptac_gbm_gdc_manifest/gdc_gbm_rna_counts_batch1-3_manifest.tsv'
+CPTAC_GDC_DATA_ROOT = '../external_data/cptac_gbm_gdc/'
+UUID_REGEX = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}'
+```
+
+Read sample details
+```{r}
+cptac_sample_tbl <- read_tsv(CPTAC_GDC_MANIFEST_PTH) %>%
+    select(file_id = id, file_name, file_size,
+           case = case_submitter_id, sample = aliquot_submitter_id,
+           file_type)
+```
+
+```{r}
+cptac_sample_tbl %>% distinct(file_type)
+```
+
+
+Find all the count files
+```{r}
+count_files = list.files(CPTAC_GDC_DATA_ROOT, pattern = '.*\\.gz$', recursive = TRUE, full.names = TRUE)
+
+cptac_count_file_path_tbl = tibble(file_path = count_files) %>%
+    mutate(
+        file_id = str_match(
+            file_path,
+            str_interp('/(${UUID_REGEX})/')
+        )[, 2],
+        file_name = basename(file_path),
+        file_type = str_match(
+            file_name, 
+            str_interp('${UUID_REGEX}\\.(.*)(\\.txt|\\.tsv).gz')
+        )[, 2]
+    ) %>%
+    select(file_id, file_type, file_name, file_path)
+
+cptac_count_file_path_tbl %>% head()
+```
+
+Some samples are not available
+```{r}
+cptac_sample_tbl %>%
+    filter(!file_id %in% cptac_count_file_path_tbl$file_id) %>%
+    count(case)
+```
+
+Merge sample sheet and count file tables
+```{r}
+cptac_count_file_tbl <- cptac_count_file_path_tbl %>%
+    left_join(cptac_sample_tbl, by = c("file_id", "file_name", "file_type")) %>%
+    select(case, sample, file_type, file_id, file_name, everything()) %>%
+    arrange(file_type, case, sample)
+```
+
+```{r}
+cptac_count_file_tbl %>%
+    count(file_type)
+```
+
+Save all count file path information
+```{r}
+cptac_count_file_tbl %>%
+    write_tsv('../processed_data/cptac_gbm_rnaseq_gdc_count_files.tsv.gz')
+```
+
+
+```{r}
+cptac_count_file_tbl.htseq <- cptac_count_file_tbl %>% filter(file_type == 'htseq_counts')
+cptac_count_file_tbl.fpkm <- cptac_count_file_tbl %>% filter(file_type == 'FPKM')
+cptac_count_file_tbl.fpkm_uq <- cptac_count_file_tbl %>% filter(file_type == 'FPKM-UQ')
+cptac_count_file_tbl.star_gene <- cptac_count_file_tbl %>% filter(file_type == 'rna_seq.star_gene_counts')
+cptac_count_file_tbl.star_sj <- cptac_count_file_tbl %>% filter(file_type == 'rna_seq.star_splice_junctions')
+
+# make sure the sample order is the same for each file type
+identical(cptac_count_file_tbl.htseq$sample, cptac_count_file_tbl.fpkm$sample)
+identical(cptac_count_file_tbl.fpkm$sample, cptac_count_file_tbl.fpkm_uq$sample)
+identical(cptac_count_file_tbl.fpkm_uq$sample, cptac_count_file_tbl.star_gene$sample)
+identical(cptac_count_file_tbl.star_gene$sample, cptac_count_file_tbl.star_sj$sample)
+```
+
+
+
+## Construct gene annotation details
+```{r}
+gdc_seqinfo <- readRDS(GDC_SEQINFO_PTH)
+gdc_gene_annotation_gr <- read_tsv(GDC_GENE_ANNOTATION_PTH) %>%
+    column_to_rownames('gene_id') %>%
+    makeGRangesFromDataFrame(
+        seqinfo = gdc_seqinfo,
+        keep.extra.columns = TRUE
+    )
+```
+
+
+
+## Collect HTSeq count matrices
+```{r}
+read_htseq_count <- function(pth) {
+    read_tsv(
+        pth, 
+        col_names = c('gene_id', 'read_count'),
+        cols(
+            gene_id = col_character(),
+            read_count = col_double()
+        )
+    ) %>%
+        # Remove HTSeq special columns
+        filter(!startsWith(gene_id, '__'))
+}
+
+htseq_count_tbl <- read_htseq_count(cptac_count_file_tbl.htseq$file_path[[1]])
+
+cptac_htseq_count_mat <- cptac_count_file_tbl.htseq$file_path %>%
+    set_names(cptac_count_file_tbl.htseq$case) %>%
+    map(~ read_htseq_count(.x)$read_count) %>%
+    bind_cols() %>%
+    as.matrix()
+
+rownames(cptac_htseq_count_mat) <- htseq_count_tbl$gene_id
+
+cptac_htseq_count_mat <- cptac_htseq_count_mat[names(gdc_gene_annotation_gr), ]
+```
+
+
+## Collect FPKM count matrices
+```{r}
+read_fpkm <- function(pth) {
+    read_tsv(
+        pth, 
+        col_names = c('gene_id', 'fpkm'),
+        cols(
+            gene_id = col_character(),
+            fpkm = col_double()
+        )
+    )
+}
+
+fpkm_tbl <- read_fpkm(cptac_count_file_tbl.fpkm$file_path[[1]])
+
+cptac_fpkm_mat <- cptac_count_file_tbl.fpkm$file_path %>%
+    set_names(cptac_count_file_tbl.fpkm$case) %>%
+    map(~ read_fpkm(.x)$fpkm) %>%
+    bind_cols() %>%
+    as.matrix()
+
+rownames(cptac_fpkm_mat) <- fpkm_tbl$gene_id
+cptac_fpkm_mat <- cptac_fpkm_mat[names(gdc_gene_annotation_gr), ]
+```
+
+
+
+## Collect FPKM-UQ count matrices
+```{r}
+fpkm_uq_tbl <- read_fpkm(cptac_count_file_tbl.fpkm_uq$file_path[[1]])
+
+cptac_fpkm_uq_mat <- cptac_count_file_tbl.fpkm_uq$file_path %>%
+    set_names(cptac_count_file_tbl.fpkm_uq$case) %>%
+    map(~ read_fpkm(.x)$fpkm) %>%
+    bind_cols() %>%
+    as.matrix()
+
+rownames(cptac_fpkm_uq_mat) <- fpkm_uq_tbl$gene_id
+cptac_fpkm_uq_mat <- cptac_fpkm_uq_mat[names(gdc_gene_annotation_gr), ]
+```
+
+
+
+## Collect STAR gene count
+```{r}
+read_star_gene_count <- function(pth) {
+    read_tsv(
+        pth, 
+        col_types = cols(
+            .default = col_double(),
+            `#gene` = col_character()
+        )
+    ) %>%
+        rename(gene_id = `#gene`) %>%
+        filter(!startsWith(gene_id, 'N_'))
+}
+star_gene_count_tbl <- read_star_gene_count(cptac_count_file_tbl.star_gene$file_path[[1]])
+star_gene_count_tbl %>% head()
+```
+
+Read all the STAR gene count tables
+```{r}
+cptac_star_gene_count_tbls <- cptac_count_file_tbl.star_gene$file_path %>%
+    set_names(cptac_count_file_tbl.star_gene$case) %>%
+    map(~ read_star_gene_count(.x) %>% select(-gene_id))
+```
+
+Separately merge the gene count tables as a matrix
+```{r}
+star_count_tbl_to_mat <- function(star_tbl) {
+    mat <- star_tbl %>% as.matrix()
+    rownames(mat) <- star_gene_count_tbl$gene_id
+    mat[names(gdc_gene_annotation_gr), ]
+}
+
+cptac_star_gene_count_mats <- list(
+    star_gene_unstranded = cptac_star_gene_count_tbls %>% map_dfc( ~ .x$unstranded) %>% star_count_tbl_to_mat(),
+    star_gene_stranded_first = cptac_star_gene_count_tbls %>% map_dfc( ~ .x$stranded_first) %>% star_count_tbl_to_mat(),
+    star_gene_stranded_second = cptac_star_gene_count_tbls %>% map_dfc( ~ .x$stranded_second) %>% star_count_tbl_to_mat()
+)
+```
+
+
+
+## Collect STAR splice junction
+```{r}
+read_star_sj_count <- function(pth) {
+    read_tsv(
+        pth, 
+        col_types = cols(
+            .default = col_double(),
+            `#chromosome` = col_character()
+        )
+    ) %>%
+        rename(chromosome = `#chromosome`) %>%
+        mutate(chromosome = factor(chromosome, names(gdc_seqinfo)))
+}
+star_sj_tbl <- read_star_sj_count(cptac_count_file_tbl.star_sj$file_path[[1]])
+star_sj_tbl %>% head()
+```
+
+```{r}
+cptac_star_sj_count_list <- cptac_count_file_tbl.star_sj$file_path %>%
+    set_names(cptac_count_file_tbl.star_sj$case) %>%
+    map(~ read_star_sj_count(.x), .id = 'case') 
+```
+
+Splice junctions are not a count matrix. Store them individually.
+```{r}
+cptac_star_sj_count_list %>%
+    saveRDS('../processed_data/cptac_gbm_rnaseq_gdc_star_splice_junctions.gdc_harm_batch1-3.rds')
+```
+
+
+
+## Collect all count file types together
+The order of genes are the same for all count matrices across file types
+```{r}
+identical(rownames(cptac_htseq_count_mat), rownames(cptac_fpkm_mat))
+identical(rownames(cptac_fpkm_mat), rownames(cptac_fpkm_uq_mat))
+identical(rownames(cptac_star_gene_count_mats$star_gene_unstranded), rownames(cptac_fpkm_uq_mat))
+```
+
+The column data is shared
+```{r}
+coldata = cptac_count_file_tbl.htseq %>%
+    select(case, sample, file_id, file_name) %>%
+    column_to_rownames('case')
+coldata %>% head()
+```
+
+Make SummarizedExperiment object
+```{r}
+cptac_rna_count <- SummarizedExperiment(
+    rowRanges = gdc_gene_annotation_gr,
+    colData = coldata,
+    assays = c(
+        list(
+            fpkm = cptac_fpkm_mat,
+            fpkm_uq = cptac_fpkm_uq_mat,
+            htseq_count = cptac_htseq_count_mat
+        ), 
+        cptac_star_gene_count_mats
+    ),
+    metadata = list(
+        cohort = 'CPTAC GBM adhoc cohort (GDC harmonization batch 1 to 3)',
+        description = str_c(
+            'GDC unreleased (v15+) count matrices ',
+            '(FPKM, FPKM-UQ, HTSeq count, STAR gene unstranded/stranded_first/stranded_second counts)'
+        ),
+        pipeline = 'https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/Expression_mRNA_Pipeline/',
+        annotation = str_c(
+            "GENCODE v22 (Ensembl v79) using gencode.gene.info.v22.tsv on GDC ",
+            "at https://api.gdc.cancer.gov/data/b011ee3e-14d8-4a97-aed4-e0b10f6bbe82"
+        ),
+        contact = 'Liang-Bo Wang <liang-bo.wang@wustl.edu>'
+    )
+)
+```
+
+```{r}
+cptac_rna_count %>%
+    saveRDS('../processed_data/cptac_gbm_rnaseq_gdc_counts.gdc_harm_batch1-3.rds')
+```
+

@@ -81,7 +81,7 @@ tcga_count_file_tbl %>%
 Save all count file path information
 ```{r}
 tcga_count_file_tbl %>%
-    write_tsv('../processed_data/tcga_gbm_rnaseq_count_files.tsv.gz')
+    write_tsv('../processed_data/tcga_gbm_rnaseq_gdc_count_files.tsv.gz')
 ```
 
 
@@ -199,12 +199,6 @@ Make sure all the gene IDs are in the GDC gene annotation table
 fpkm_uq_tbl$gene_id %>% setdiff(names(gdc_gene_annotation_gr))
 ```
 
-The order of genes are the same for all count matrices across file types
-```{r}
-identical(fpkm_uq_tbl$gene_id, fpkm_tbl$gene_id)
-identical(fpkm_tbl$gene_id, htseq_count_tbl$gene_id)
-```
-
 Read all the samples
 ```{r}
 tcga_fpkm_uq_mat <- tcga_count_file_tbl.fpkm_uq$file_path %>%
@@ -221,6 +215,12 @@ tcga_fpkm_uq_mat[1:5, 1:5]
 
 
 ## Collect all count file types together
+The order of genes are the same for all count matrices across file types
+```{r}
+identical(rownames(tcga_htseq_count_mat), rownames(tcga_fpkm_mat))
+identical(rownames(tcga_fpkm_mat), rownames(tcga_fpkm_uq_mat))
+```
+
 The column data is shared
 ```{r}
 coldata = tcga_count_file_tbl.htseq %>%
@@ -254,6 +254,6 @@ tcga_rna_count <- SummarizedExperiment(
 
 ```{r}
 tcga_rna_count %>%
-    saveRDS('../processed_data/tcga_gbm_rnaseq_count.gdc_v12.rds')
+    saveRDS('../processed_data/tcga_gbm_rnaseq_gdc_counts.gdc_v12.rds')
 ```
 
