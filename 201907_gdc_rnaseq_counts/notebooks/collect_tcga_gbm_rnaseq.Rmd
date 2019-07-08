@@ -1,0 +1,259 @@
+---
+title: "Collect TCGA GBM RNA-seq counts"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(GenomicFeatures)
+library(SummarizedExperiment)
+library(tidyverse)
+```
+
+```{r}
+GDC_SEQINFO_PTH = '../../annotations/seqinfo_GRCh38.d1.vd1.rds'
+GDC_GENE_ANNOTATION_PTH = '../../annotations/gencode.gene.info.v22.tsv'
+TCGA_GDC_SAMPLE_SHEET_PTH = '../tcga_gbm_gdc_manifest/gdc_sample_sheet.2019-07-05.tsv.gz'
+TCGA_GDC_METADATA_PTH = '../tcga_gbm_gdc_manifest/metadata.cart.2019-07-05.json.gz'
+TCGA_GDC_DATA_ROOT = '../external_data/tcga_gbm_gdc'
+UUID_REGEX = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}'
+```
+
+Read sample details
+```{r}
+tcga_sample_tbl <- read_tsv(
+    TCGA_GDC_SAMPLE_SHEET_PTH,
+    col_types = cols(.default = col_character())
+) %>%
+    select(
+        file_id = `File ID`, file_name = `File Name`, 
+        case = `Case ID`, sample = `Sample ID`, sample_type = `Sample Type`
+    ) %>%
+    left_join(
+        # Add long sample_id
+        jsonlite::fromJSON(TCGA_GDC_METADATA_PTH, flatten = TRUE) %>%
+            unnest(associated_entities) %>%
+            select(file_id, file_name, long_sample = entity_submitter_id),
+        by = c("file_id", "file_name")
+    )
+```
+
+
+Find all the count files
+```{r}
+count_files = list.files(TCGA_GDC_DATA_ROOT, pattern = '.*\\.gz$', recursive = TRUE, full.names = TRUE)
+
+tcga_count_file_path_tbl = tibble(file_path = count_files) %>%
+    mutate(
+        file_id = str_match(
+            file_path,
+            str_interp('/(${UUID_REGEX})/')
+        )[, 2],
+        file_name = basename(file_path),
+        file_type = str_match(
+            file_name, 
+            str_interp('${UUID_REGEX}\\.(FPKM-UQ|FPKM|htseq\\.counts)(\\.txt)?.gz')
+        )[, 2]
+    ) %>%
+    select(file_id, file_type, file_name, file_path)
+
+tcga_count_file_path_tbl %>% head()
+```
+
+Make sure all files have file types
+```{r}
+tcga_count_file_path_tbl %>%
+    filter(is.na(file_type))
+```
+
+Merge sample sheet and count file tables
+```{r}
+tcga_count_file_tbl <- tcga_count_file_path_tbl %>%
+    left_join(tcga_sample_tbl, by = c("file_id", "file_name")) %>%
+    select(case, sample, long_sample, sample_type, file_type, file_id, file_name, everything()) %>%
+    arrange(file_type, case, sample_type, long_sample)
+```
+
+```{r}
+tcga_count_file_tbl %>%
+    count(file_type)
+```
+
+Save all count file path information
+```{r}
+tcga_count_file_tbl %>%
+    write_tsv('../processed_data/tcga_gbm_rnaseq_count_files.tsv.gz')
+```
+
+
+```{r}
+tcga_count_file_tbl.htseq <- tcga_count_file_tbl %>% filter(file_type == 'htseq.counts')
+tcga_count_file_tbl.fpkm <- tcga_count_file_tbl %>% filter(file_type == 'FPKM')
+tcga_count_file_tbl.fpkm_uq <- tcga_count_file_tbl %>% filter(file_type == 'FPKM-UQ')
+
+# make sure the sample order is the same for each file type
+identical(tcga_count_file_tbl.htseq$long_sample, tcga_count_file_tbl.fpkm$long_sample)
+identical(tcga_count_file_tbl.fpkm$long_sample, tcga_count_file_tbl.fpkm_uq$long_sample)
+```
+
+
+
+## Construct gene annotation details
+```{r}
+gdc_seqinfo <- readRDS(GDC_SEQINFO_PTH)
+gdc_gene_annotation_gr <- read_tsv(GDC_GENE_ANNOTATION_PTH) %>%
+    column_to_rownames('gene_id') %>%
+    makeGRangesFromDataFrame(
+        seqinfo = gdc_seqinfo,
+        keep.extra.columns = TRUE
+    )
+```
+
+
+
+## Collect HTSeq count matrices
+```{r}
+read_htseq_count <- function(pth) {
+    # HTSEQ_SPECIAL_COLS = c("__no_feature", "__ambiguous", "__too_low_aQual", "__not_aligned", "__alignment_not_unique")
+    read_tsv(
+        pth, 
+        col_names = c('gene_id', 'read_count'),
+        cols(
+            gene_id = col_character(),
+            read_count = col_double()
+        )
+    ) %>%
+        # Remove HTSeq special columns
+        filter(!startsWith(gene_id, '__'))
+}
+
+htseq_count_tbl <- read_htseq_count(tcga_count_file_tbl.htseq$file_path[[1]])
+htseq_count_tbl %>% head()
+```
+
+Make sure all the gene IDs are in the GDC gene annotation table
+```{r}
+htseq_count_tbl$gene_id %>% setdiff(names(gdc_gene_annotation_gr))
+```
+
+Read all the samples
+```{r}
+tcga_htseq_count_mat <- tcga_count_file_tbl.htseq$file_path %>%
+    set_names(tcga_count_file_tbl.htseq$long_sample) %>%
+    map(~ read_htseq_count(.x)$read_count) %>%
+    bind_cols() %>%
+    as.matrix()
+
+rownames(tcga_htseq_count_mat) <- htseq_count_tbl$gene_id
+
+tcga_htseq_count_mat <- tcga_htseq_count_mat[names(gdc_gene_annotation_gr), ]
+tcga_htseq_count_mat[1:5, 1:5]
+```
+
+
+
+## Collect FPKM count matrices
+```{r}
+read_fpkm <- function(pth) {
+    read_tsv(
+        pth, 
+        col_names = c('gene_id', 'fpkm'),
+        cols(
+            gene_id = col_character(),
+            fpkm = col_double()
+        )
+    )
+}
+
+fpkm_tbl <- read_fpkm(tcga_count_file_tbl.fpkm$file_path[[1]])
+fpkm_tbl %>% head()
+```
+
+Make sure all the gene IDs are in the GDC gene annotation table
+```{r}
+fpkm_tbl$gene_id %>% setdiff(names(gdc_gene_annotation_gr))
+```
+
+Read all the samples
+```{r}
+tcga_fpkm_mat <- tcga_count_file_tbl.fpkm$file_path %>%
+    set_names(tcga_count_file_tbl.fpkm$long_sample) %>%
+    map(~ read_fpkm(.x)$fpkm) %>%
+    bind_cols() %>%
+    as.matrix()
+
+rownames(tcga_fpkm_mat) <- fpkm_tbl$gene_id
+tcga_fpkm_mat <- tcga_fpkm_mat[names(gdc_gene_annotation_gr), ]
+tcga_fpkm_mat[1:5, 1:5]
+```
+
+
+
+## Collect FPKM-UQ count matrices
+```{r}
+fpkm_uq_tbl <- read_fpkm(tcga_count_file_tbl.fpkm_uq$file_path[[1]])
+fpkm_uq_tbl %>% head()
+```
+
+Make sure all the gene IDs are in the GDC gene annotation table
+```{r}
+fpkm_uq_tbl$gene_id %>% setdiff(names(gdc_gene_annotation_gr))
+```
+
+The order of genes are the same for all count matrices across file types
+```{r}
+identical(fpkm_uq_tbl$gene_id, fpkm_tbl$gene_id)
+identical(fpkm_tbl$gene_id, htseq_count_tbl$gene_id)
+```
+
+Read all the samples
+```{r}
+tcga_fpkm_uq_mat <- tcga_count_file_tbl.fpkm_uq$file_path %>%
+    set_names(tcga_count_file_tbl.fpkm_uq$long_sample) %>%
+    map(~ read_fpkm(.x)$fpkm) %>%
+    bind_cols() %>%
+    as.matrix()
+
+rownames(tcga_fpkm_uq_mat) <- fpkm_uq_tbl$gene_id
+tcga_fpkm_uq_mat <- tcga_fpkm_uq_mat[names(gdc_gene_annotation_gr), ]
+tcga_fpkm_uq_mat[1:5, 1:5]
+```
+
+
+
+## Collect all count file types together
+The column data is shared
+```{r}
+coldata = tcga_count_file_tbl.htseq %>%
+    select(case, sample, long_sample, sample_type, file_id, file_name) %>%
+    column_to_rownames('long_sample')
+coldata %>% head()
+```
+
+Make SummarizedExperiment object
+```{r}
+tcga_rna_count <- SummarizedExperiment(
+    rowRanges = gdc_gene_annotation_gr,
+    colData = coldata,
+    assays = list(
+        fpkm = tcga_fpkm_mat,
+        fpkm_uq = tcga_fpkm_uq_mat,
+        htseq_count = tcga_htseq_count_mat
+    ),
+    metadata = list(
+        cohort = 'TCGA GBM',
+        description = 'GDC Data Release v12.0 count matrices (FPKM, FPKM-UQ, HTSeq count)',
+        pipeline = 'https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/Expression_mRNA_Pipeline/',
+        annotation = str_c(
+            "GENCODE v22 (Ensembl v79) using gencode.gene.info.v22.tsv on GDC ",
+            "at https://api.gdc.cancer.gov/data/b011ee3e-14d8-4a97-aed4-e0b10f6bbe82"
+        ),
+        contact = 'Liang-Bo Wang <liang-bo.wang@wustl.edu>'
+    )
+)
+```
+
+```{r}
+tcga_rna_count %>%
+    saveRDS('../processed_data/tcga_gbm_rnaseq_count.gdc_v12.rds')
+```
+
