@@ -39,6 +39,9 @@ Using the same Salmon pipeline to process TCGA GBM BAMs.
 ### `201907_gdc_rnaseq_counts` locally
 Download GDC RNA-Seq count files for both TCGA and CPTAC GBM samples.
 
+### `201907_methylation_array` on denali
+Process batch 1-9 DNA methylation array data.
+
 
 
 ## Ad-hoc cohort
