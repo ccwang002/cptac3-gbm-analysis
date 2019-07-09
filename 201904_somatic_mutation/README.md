@@ -12,6 +12,7 @@ and GDC.
 
 
 ## Pipeline execution
-Load the somatic mutations by WashU and GDC:
+Load the somatic mutations by SomaticWrapper, TinDaisy, and GDC:
 
-    snakemake add_gdc_mutation_to_db add_washu_mutation_to_db
+    snakemake add_gdc_mutation_to_db add_somwrap_mutation_to_db \
+        add_all_tindaisy_mafs add_all_tindaisy_raw_merged_mafs

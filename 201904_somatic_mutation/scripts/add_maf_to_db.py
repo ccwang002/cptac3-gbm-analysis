@@ -1,3 +1,4 @@
+import gzip
 import logging
 from typing import NamedTuple
 from sqlalchemy import (
@@ -60,8 +61,8 @@ class MAFMutationCall(NamedTuple):
         Table(db_table_name, metadata, *cls.create_cols())
 
 
-def read_maf(maf_pth):
-    """Read a MAF file."""
+def read_maf(maf_pth, callers_pth):
+    """Read a MAF and the associated callers file."""
     def to_int(x):
         if x == '':
             return 0
@@ -71,14 +72,16 @@ def read_maf(maf_pth):
             return int(x)
 
     maf = TrailingTabTrimmedMAF(maf_pth)
-    has_caller = 'callers' in maf.columns
-    for m in maf:
+    callers_per_mut = gzip.open(callers_pth, 'rt')
+    assert next(callers_per_mut).rstrip('\n') == 'callers'
+
+    for m, callers in zip(maf, callers_per_mut):
         sample = m.tumor_sample_barcode[:-2]
         yield MAFMutationCall(
             sample=sample, chromosome=m.chromosome,
             start=int(m.start_position), end=int(m.end_position),
             ref_allele=m.reference_allele, alt_allele=m.tumor_seq_allele2,
-            filter=m.filter, callers=(m.callers if has_caller else None),
+            filter=m.filter, callers=callers.rstrip('\n'),
             t_depth=to_int(m.t_depth), t_ref_count=to_int(m.t_ref_count),
             t_alt_count=to_int(m.t_alt_count),
             n_depth=to_int(m.n_depth), n_ref_count=to_int(m.n_ref_count),
@@ -92,12 +95,12 @@ def read_maf(maf_pth):
         )
 
 
-def load_maf_to_db(conn, metadata, maf_pth, db_table_name):
+def load_maf_to_db(conn, metadata, maf_pth, callers_pth, db_table_name):
     """Load MAF to a given table."""
     ins = metadata.tables[db_table_name].insert()
     # Insert mutation calls by batches
     ins_batch = []
-    for i, mut in enumerate(read_maf(maf_pth), 1):
+    for i, mut in enumerate(read_maf(maf_pth, callers_pth), 1):
         # Add new record into batch
         ins_batch.append(mut._asdict())
 
@@ -138,7 +141,7 @@ def setup_cli(snakemake):
 
 
 
-def main(db_pth, maf_pth, db_table_name):
+def main(db_pth, maf_pth, callers_pth, db_table_name):
     logger.info(f'Add new table {db_table_name} to the SQLite database at {db_pth}')
     metadata = MetaData()
     db_engine = create_engine(f'sqlite:///{db_pth}')
@@ -147,7 +150,7 @@ def main(db_pth, maf_pth, db_table_name):
     conn = db_engine.connect()
 
     logger.info(f'Load MAF from {maf_pth} to table {db_table_name}')
-    load_maf_to_db(conn, metadata, maf_pth, db_table_name)
+    load_maf_to_db(conn, metadata, maf_pth, callers_pth, db_table_name)
 
     logger.info('Complete')
 
@@ -157,5 +160,6 @@ if __name__ == '__main__':
     main(
         snakemake.params['db'],   # noqa
         snakemake.input['maf'],   # noqa
+        snakemake.input['callers'],         # noqa
         snakemake.params['db_table_name'],  # noqa
     )

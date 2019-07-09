@@ -156,6 +156,15 @@ rule convert_tindaisy_vcf_to_maf:
         ''')
 
 
+rule extract_tindaisy_vcf_callers:
+    """Extract callers per mutation."""
+    input: 'external_data/tindaisy_vcfs/{case}.vcf'
+    output: 'processed_data/tindaisy_mafs/{case}.callers.tsv.gz'
+    wildcard_constraints:
+        case='[^.]+'
+    shell: 'python scripts/extract_tindaisy_callers.py {input} | gzip -9 > {output}'
+
+
 rule vep_annotate_vcf:
     """Annotate VCF using VEP."""
     input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
@@ -211,15 +220,29 @@ rule convert_tindaisy_raw_vcf_to_maf:
             --filter-vcf 0 --ncbi-build GRCh38 >/dev/null 2>/dev/null
         gzip -9 {params.uncompress_maf}
         ''')
+
+
+rule extract_tindaisy_raw_vcf_callers:
+    """Extract callers per mutation."""
+    input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
+    output: 'processed_data/tindaisy_raw_annotated_mafs/{raw_type}/{case}.{raw_type}.callers.tsv.gz'
+    shell: 'python scripts/extract_tindaisy_callers.py {input} | gzip -9 > {output}'
+
 # }}}
 
 
 rule all_raw_tindaisy_mafs:
     """All TinDiasy raw outputs in annotated MAF."""
-    input: expand( \
-        rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
-        case=case_to_remote_tindaisy_vcf.keys(), \
-        raw_type=['raw_merged', 'raw_merged_filtered'])
+    input: expand(                                               \
+            rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
+            case=case_to_remote_tindaisy_vcf.keys(),             \
+            raw_type=['raw_merged', 'raw_merged_filtered']       \
+        ),                                                       \
+        expand( \
+            rules.extract_tindaisy_raw_vcf_callers.output[0], \
+            case=case_to_remote_tindaisy_vcf.keys(), \
+            raw_type=['raw_merged', 'raw_merged_filtered'] \
+        )
 
 
 rule add_gdc_mutation_to_db:
@@ -250,8 +273,9 @@ rule add_tindaisy_one_maf:
     """Add TinDaisy output of one GBM case into database."""
     input:
         maf=rules.convert_tindaisy_vcf_to_maf.output['maf'],
+        callers=rules.extract_tindaisy_vcf_callers.output[0],
         prev_db_state=rules.add_somwrap_mutation_to_db.output['db_state']
-    output: db_state=touch('processed_data/db_state/2_added_tindaisy_{case}')
+    output: db_state=touch('processed_data/db_state/2_added_td_one_case/{case}')
     params:
         db=rules.add_gdc_mutation_to_db.output['db'],
         db_table_name='tindaisy'
@@ -267,3 +291,25 @@ rule add_all_tindaisy_mafs:
     output:
         db_state=touch('processed_data/db_state/2_added_td_all_cases')
 
+
+rule add_tindaisy_raw_merged_one_maf:
+    """Add TinDaisy raw merged output of one GBM case into database."""
+    input:
+        maf='processed_data/tindaisy_raw_annotated_mafs/raw_merged/{case}.raw_merged.maf.gz',
+        callers='processed_data/tindaisy_raw_annotated_mafs/raw_merged/{case}.raw_merged.callers.tsv.gz',
+        prev_db_state=rules.add_all_tindaisy_mafs.output['db_state']
+    output: db_state=touch('processed_data/db_state/3_added_td_raw_merged_one_case/{case}')
+    params:
+        db=rules.add_gdc_mutation_to_db.output['db'],
+        db_table_name='tindaisy_raw_merged'
+    log: 'logs/db_add_tindaisy_raw_merged_mut/{case}.log'
+    script: 'scripts/add_maf_to_db.py'
+
+
+rule add_all_tindaisy_raw_merged_mafs:
+    """Add all TinDiasy raw merged outputs."""
+    input:
+        mafs=expand(rules.add_tindaisy_raw_merged_one_maf.output['db_state'], \
+                    case=case_to_remote_tindaisy_vcf.keys())
+    output:
+        db_state=touch('processed_data/db_state/3_added_td_raw_merged_all_cases')
