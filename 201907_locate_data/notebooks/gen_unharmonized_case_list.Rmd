@@ -1,0 +1,20 @@
+---
+title: "Export unharmonized case list"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+cohort_seq_tbl = read_tsv('../tracked_results/cptac3_gbm_seq_status.tsv')
+```
+
+```{r}
+cohort_seq_tbl %>%
+    filter(in_discovery, !is_gtex_normal, !(has_wgs_tumor_gdc | has_wgs_normal_gdc)) %>% 
+    pull(case) %>%
+    write_lines('../tracked_results/wxs_or_wgs_unharmonized_cases.list')
+```
+
