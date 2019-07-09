@@ -3,7 +3,7 @@ from pathlib import Path
 from textwrap import dedent
 
 # Path to the unharmonized cases
-CASE_LIST_PTH = '../201904_locate_adhoc_data/tracked_results/unharmonized_cases.list'
+CASE_LIST_PTH = '../201907_locate_data/tracked_results/wxs_or_wgs_unharmonized_cases.list'
 # Path to the sequencing file mapping from Matt's catalog
 MGI_MAP_PTH = '../matt_catalog/MGI.BamMap.dat'
 GDC_REF_FA_PTH = '/gscmnt/gc2521/dinglab/mwyczalk/somatic-wrapper-data/image.data/A_Reference/GRCh38.d1.vd1.fa'
