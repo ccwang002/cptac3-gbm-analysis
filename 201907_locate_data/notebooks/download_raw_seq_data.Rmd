@@ -33,7 +33,7 @@ bam_maps <- list.files('../../matt_catalog', '.*.BamMap.dat$', full.names = TRUE
 
 ## Download the RNA-seq to MGI
 ```{r}
-cases_with_rna_processed <- read_lines('../cases_with_rna_processed.list') %>%
+cases_with_rna_processed <- read_lines('../genomic_downstream_availability/cases_with_rna_processed.list') %>%
     setdiff('C3N-01850')
 ```
 

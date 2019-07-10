@@ -1,0 +1,80 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+Read cohort sequence availability table
+```{r}
+cohort_seq_tbl <- read_tsv('../tracked_results/cptac3_gbm_seq_status.tsv')
+```
+
+
+Latest custom WXS/WGS BAM map
+```{r}
+wgs_custom_bam_tbl <- read_tsv('../tracked_results/MGI.GBM_custom_wgs.BamMap.dat') %>%
+    rename(sample_name = `# sample_name`)
+
+wxs_custom_bam_tbl <- read_tsv('../tracked_results/MGI.GBM_custom_wxs.BamMap.dat') %>%
+    rename(sample_name = `# sample_name`)
+```
+
+
+
+## Find cases to run CNV
+```{r}
+cases_with_cnv <- read_lines(
+    '../genomic_downstream_availability/wustl_somatic_cnv_cases.list'
+)
+```
+
+```{r}
+cases_to_run_cnv <- wgs_custom_bam_tbl %>% pull(case) %>% unique() %>% setdiff(cases_with_cnv)
+cases_to_run_cnv
+```
+
+```{r}
+cohort_seq_tbl %>%
+    filter(
+        !case %in% union(cases_with_cnv, cases_to_run_cnv),
+        has_wgs_normal_raw & has_wgs_tumor_raw,
+        !is_gtex_normal
+    ) %>% 
+    select(case, in_discovery)
+```
+
+```{r}
+cases_to_run_cnv %>%
+    write_lines('../tracked_results/cases_to_run_somatic_cnv.list')
+```
+
+
+## Find cases to run somatic mutation
+```{r}
+cases_with_mut <- read_lines(
+    '../genomic_downstream_availability/wustl_somatic_mutation_cases.list'
+)
+```
+
+```{r}
+cases_to_run_mut <- wxs_custom_bam_tbl %>% pull(case) %>% unique() %>% setdiff(cases_with_mut)
+cases_to_run_mut
+```
+
+```{r}
+cohort_seq_tbl %>%
+    filter(
+        !case %in% union(cases_with_mut, cases_to_run_mut),
+        has_wxs_normal_raw & has_wxs_tumor_raw,
+        !is_gtex_normal
+    ) %>% 
+    select(case, in_discovery)
+```
+
+```{r}
+cases_to_run_mut %>%
+    write_lines('../tracked_results/cases_to_run_somatic_mutation.list')
+```
