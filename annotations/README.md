@@ -7,6 +7,7 @@ Overall genome information:
 - `ucscToEnsembl.txt.gz`: Chromosome name conversion between UCSC and Ensembl; downloaded from [UCSC][ucsc-chrom].
 
 Gene annotation:
+- `EnsDb.gencode_v22.v79.sqlite`: GENCODE v22 (Ensembl v79) annotation as an ensembldb R object downloaded from [AnnotationHub][ensdb-v79].
 - `EnsDb.Hsapiens.v94.sqlite`: Ensembl v94 annotation as an ensembldb R object downloaded from [AnnotationHub][ensdb-v94].
 - `EnsDb.Hsapiens.v96.sqlite`: Ensembl v96 annotation as an ensembldb R object downloaded from [AnnotationHub][ensdb-v96].
 
@@ -18,6 +19,7 @@ From GDC:
 - `gencode.gene.info.v22.tsv`: [GDC][gdc-gene-info-tsv]'s gene annotation for RNA-seq related pipelines.
 
 
+[ensdb-v94]: http://s3.amazonaws.com/annotationhub/AHEnsDbs/v79/EnsDb.Hsapiens.v79.sqlite
 [ensdb-v94]: http://s3.amazonaws.com/annotationhub/AHEnsDbs/v94/EnsDb.Hsapiens.v94.sqlite
 [ensdb-v96]: http://s3.amazonaws.com/annotationhub/AHEnsDbs/v96/EnsDb.Hsapiens.v96.sqlite
 [ucsc-chrom]: http://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/ucscToEnsembl.txt.gz
