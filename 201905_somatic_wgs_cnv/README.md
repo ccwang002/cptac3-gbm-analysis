@@ -6,20 +6,7 @@ This project plot and analyze the somatic WGS CNVs by the BIC-seq2 output.
 ## Collect the raw output
 Copy the raw BIC-seq2 output
 
-    rsync -az --info=progress2 \
-        --exclude-from=cnv_rsync_exclude_patterns.list \
-        vw3.gsc.wustl.edu:/gscmnt/gc2541/cptac3_analysis/gbm_somatic_wgs_cnv/results.GBM-custom-harm.MGI/ \
-        external_data/bicseq2_cnv
-
-    rsync -a --info=progress2 \
-        --exclude-from=cnv_rsync_exclude_patterns.list \
-        /diskmnt/Projects/cptac_downloads_4/CPTAC3_GBM/201905_somatic_wgs_cnv/results.GBM-not-in-discover.katmai/ \
-        external_data/bicseq2_cnv
-
-    rsync -a --info=progress2 \
-        --exclude-from=cnv_rsync_exclude_patterns.list \
-        /diskmnt/Projects/cptac_downloads_4/CPTAC3_GBM/201902_somatic_wgs_cnv/run_cases.GBM-subset/ \
-        external_data/bicseq2_cnv
+    bash scripts/rsync_all_cnv_outputs.sh
 
 Compress the output
 
