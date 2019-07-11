@@ -2,7 +2,7 @@ from pathlib import Path
 
 SAMPLES = sorted(p.name for p in Path('external_data/bicseq2_cnv').iterdir() if p.is_dir())
 # We have 95 samples with WGS CNV
-assert len(SAMPLES) == 95
+assert len(SAMPLES) == 115
 
 
 rule copy_bicseq2_cnv_one_sample:
@@ -11,8 +11,8 @@ rule copy_bicseq2_cnv_one_sample:
         gene_cnv='processed_data/bicseq2_cnv/gene/{sample}.tsv.gz',
         seg_cnv='processed_data/bicseq2_cnv/segment/{sample}.tsv.gz'
     input:
-        gene_cnv='external_data/bicseq2_cnv/{sample}/annotation/{sample}.gene_level.log2.seg.gz',
-        seg_cnv='external_data/bicseq2_cnv/{sample}/segmentation/{sample}.cnv.gz'
+        gene_cnv='external_data/bicseq2_cnv/{sample}/annotation/{sample}.gene_level.log2.seg',
+        seg_cnv='external_data/bicseq2_cnv/{sample}/segmentation/{sample}.cnv'
     shell:
         """
         rsync -a {input.gene_cnv} {output.gene_cnv}

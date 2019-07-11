@@ -8,12 +8,6 @@ Copy the raw BIC-seq2 output
 
     bash scripts/rsync_all_cnv_outputs.sh
 
-Compress the output
-
-    parallel --bar -j8 'gzip -9 {}' \
-        ::: external_data/bicseq2_cnv/*/segmentation/*.cnv \
-        external_data/bicseq2_cnv/*/annotation/*.gene_level.log2.seg
-
 
 
 ## Pipeline execution
