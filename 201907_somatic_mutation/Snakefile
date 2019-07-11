@@ -1,0 +1,302 @@
+import csv
+from pathlib import Path
+import re
+from textwrap import dedent
+
+GDC_RAW_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt'
+GDC_ANNOTATED_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_annotated_vcfs_manifest.txt'
+GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse']
+TINDAISY_VCF_CUSTOM_HARMONIZED_PTH = '../201907_locate_data/tracked_results/washu_realigned_tindaisy_vcfs.tsv'
+TINDAISY_VCF_HARMONIZED_PTH = '../201907_locate_data/tracked_results/gdc_harmonized_tindaisy_vcsf.tsv'
+
+VEP_CACHE_ROOT='/diskmnt/Datasets/VEP'
+
+# Samples with GDC VCFs available
+GDC_SAMPLES = set()
+with open(GDC_ANNOTATED_VCF_MANIFEST) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    GDC_SAMPLES = set(row['case ID'] for row in reader)
+
+
+# GDC {{{
+rule link_gdc_raw_vcfs:
+    """Link the raw GDC VCFs locally."""
+    input: manifest=GDC_RAW_VCF_MANIFEST
+    output: expand('external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
+    params:
+        vcf_root='/diskmnt/Projects/cptac_downloads/gdc_somatic_mutations/unversioned'
+    run:
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case ID']
+                caller = row['file_name'].split('.')[-4].lower()
+                src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
+                dst_pth = Path(f'external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz')
+                dst_pth.symlink_to(src_vcf_pth)
+
+
+rule link_gdc_annotated_vcfs:
+    """Link the annotated GDC VCFs locally."""
+    input: manifest=GDC_ANNOTATED_VCF_MANIFEST
+    output: expand('external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
+    params:
+        vcf_root='/diskmnt/Projects/cptac_downloads/gdc_somatic_mutations/unversioned'
+    run:
+        with open(input['manifest']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = row['case ID']
+                caller = row['file_name'].split('.')[-4].lower()
+                src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
+                dst_pth = Path(f'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz')
+                dst_pth.symlink_to(src_vcf_pth)
+
+
+rule annotated_vcf_to_maf:
+    """Convert one annotated GDC VCF to MAF."""
+    input: 'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz'
+    output:
+        uncompress_vcf=temp('processed_data/gdc_temp_vcfs/{sample}.{caller}.vcf'),
+        maf='processed_data/gdc_mafs/{sample}.{caller}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/gdc_mafs/{sample}.{caller}.maf'
+    shell:
+        dedent(r'''
+        gunzip -c {input} > {output.uncompress_vcf}
+        perl {params.vcf2maf} \
+            --input-vcf {output.uncompress_vcf} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.sample}_T --normal-id {wildcards.sample}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38
+        gzip -9 {params.uncompress_maf}
+        ''')
+# }}}
+
+
+# A map to remote TinDaisy VCFs
+case_to_remote_tindaisy_vcf = {}
+with open(TINDAISY_VCF_CUSTOM_HARMONIZED_PTH) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        case_to_remote_tindaisy_vcf[row['# case']] = row['result_path']
+
+with open(TINDAISY_VCF_HARMONIZED_PTH) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+        case_to_remote_tindaisy_vcf[row['# case']] = row['result_path']
+
+# A map to remote raw merged TinDaisy VCFs
+case_to_remote_tindaisy_raw_merged_vcf = {
+    case: re.sub(r'^(.*)/call-vep_filter/.*$',
+                  r'\1/call-merge_vcf/execution/results/merged/merged.vcf',
+                  pth)
+    for case, pth in case_to_remote_tindaisy_vcf.items()
+}
+# A map to remote raw merged filtered TinDaisy VCFs
+case_to_remote_tindaisy_raw_merged_filtered_vcf = {
+    case: re.sub(r'^(.*)/call-vep_filter/.*$',
+                  r'\1/call-merge_vcf/execution/results/merged/merged.filtered.vcf',
+                  pth)
+    for case, pth in case_to_remote_tindaisy_vcf.items()
+}
+
+
+# TinDaisy {{{
+rule download_tindaisy_vcf:
+    """Download TinDaisy VCFs."""
+    output: vcf='external_data/tindaisy_vcfs/{case}.vcf'
+    params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_vcf[wildcards.case]
+    wildcard_constraints:
+        case='[^.]+'
+    shell:
+        "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
+
+
+rule download_tindaisy_raw_merged_vcf:
+    """Download TinDaisy raw merged VCFs."""
+    output: vcf='external_data/tindaisy_vcfs/{case}.raw_merged.vcf'
+    params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_raw_merged_vcf[wildcards.case]
+    shell:
+        "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
+
+
+rule download_tindaisy_raw_merged_filterd_vcf:
+    """Download TinDaisy raw merged and filtered VCFs."""
+    output: vcf='external_data/tindaisy_vcfs/{case}.raw_merged_filtered.vcf'
+    params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_raw_merged_filtered_vcf[wildcards.case]
+    shell:
+        "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
+
+
+rule convert_tindaisy_vcf_to_maf:
+    """Convert annotated TinDaisy VCF to MAF."""
+    input: 'external_data/tindaisy_vcfs/{case}.vcf'
+    output:
+        maf='processed_data/tindaisy_mafs/{case}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/tindaisy_mafs/{case}.maf'
+    wildcard_constraints:
+        case='[^.]+'
+    shell:
+        dedent(r'''
+        perl {params.vcf2maf} \
+            --input-vcf {input} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.case}_T --normal-id {wildcards.case}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38
+        gzip -9 {params.uncompress_maf}
+        ''')
+
+
+rule extract_tindaisy_vcf_callers:
+    """Extract callers per mutation."""
+    input: 'external_data/tindaisy_vcfs/{case}.vcf'
+    output: 'processed_data/tindaisy_mafs/{case}.callers.tsv.gz'
+    wildcard_constraints:
+        case='[^.]+'
+    shell: 'python scripts/extract_tindaisy_callers.py {input} | gzip -9 > {output}'
+
+
+rule vep_annotate_vcf:
+    """Annotate VCF using VEP."""
+    input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
+    output: vcf='processed_data/tindaisy_raw_annotated_vcfs/{case}.{raw_type}.vep_v90.vcf'
+    params:
+        vep_cache=VEP_CACHE_ROOT,
+        buffer_size=5000
+    log: 'logs/tindaisy_raw_vep/{case}.{raw_type}.vep.log'
+    threads: 4
+    shell:
+        # Match the VEP parameters used by TinDaisy (VEP cache version is 90)
+        # https://github.com/ding-lab/TinDaisy/blob/master/cwl/tools/vep_annotate.cwl
+        # Due to the SV annotation bug, we use a newer VEP tool on the old cache
+        # Ref: https://github.com/Ensembl/ensembl-vep/issues/227
+        dedent(r'''
+        docker run -i --rm -u $(id -u):$(id -g)     \
+            -v {params.vep_cache}:/home/vep/.vep    \
+            -v $PWD:/project_root                   \
+            ensemblorg/ensembl-vep:release_96.3     \
+                vep --cache --offline --vcf --no_stats --quiet              \
+                    --cache_version 90 --dir_cache /home/vep/.vep           \
+                    --assembly GRCh38                                       \
+                    --fork {threads} --buffer_size {params.buffer_size}     \
+                    --hgvs --shift_hgvs 1 --no_escape   \
+                    --symbol --numbers --ccds --uniprot --xref_refseq       \
+                    --sift b --tsl --canonical          \
+                    --total_length --allele_number      \
+                    --variant_class --biotype           \
+                    --flag_pick_allele                  \
+                    --pick_order tsl,biotype,rank,canonical,ccds,length     \
+                    -i /project_root/{input.vcf}                            \
+                    -o /project_root/{output.vcf}                           \
+                    --warning_file /project_root/{log}
+        ''')
+
+
+rule convert_tindaisy_raw_vcf_to_maf:
+    """Convert raw TinDaisy VCF to MAF."""
+    input: rules.vep_annotate_vcf.output['vcf']
+    output:
+        maf='processed_data/tindaisy_raw_annotated_mafs/{raw_type}/{case}.{raw_type}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/tindaisy_raw_annotated_mafs/{raw_type}/{case}.{raw_type}.maf'
+    shell:
+        dedent(r'''
+        perl {params.vcf2maf} \
+            --input-vcf {input} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.case}_T --normal-id {wildcards.case}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38 >/dev/null 2>/dev/null
+        gzip -9 {params.uncompress_maf}
+        ''')
+
+
+rule extract_tindaisy_raw_vcf_callers:
+    """Extract callers per mutation."""
+    input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
+    output: 'processed_data/tindaisy_raw_annotated_mafs/{raw_type}/{case}.{raw_type}.callers.tsv.gz'
+    shell: 'python scripts/extract_tindaisy_callers.py {input} | gzip -9 > {output}'
+
+# }}}
+
+
+rule all_raw_tindaisy_mafs:
+    """All TinDiasy raw outputs in annotated MAF."""
+    input: expand(                                               \
+            rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
+            case=case_to_remote_tindaisy_vcf.keys(),             \
+            raw_type=['raw_merged', 'raw_merged_filtered']       \
+        ),                                                       \
+        expand( \
+            rules.extract_tindaisy_raw_vcf_callers.output[0], \
+            case=case_to_remote_tindaisy_vcf.keys(), \
+            raw_type=['raw_merged', 'raw_merged_filtered'] \
+        )
+
+
+rule add_gdc_mutation_to_db:
+    """Add GDC mutations (raw VCF and annotated MAF) to the database."""
+    input:
+        raw_vcfs=rules.link_gdc_raw_vcfs.output,
+        annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
+                              sample=GDC_SAMPLES, caller=GDC_CALLERS)
+    output: db='processed_data/gbm_mut_calls.sqlite',
+            db_state=touch('processed_data/db_state/0_added_gdc')
+    log: 'logs/db_add_gdc_mut.log'
+    script: 'scripts/add_gdc_maf.py'
+
+
+rule add_tindaisy_one_maf:
+    """Add TinDaisy output of one GBM case into database."""
+    input:
+        maf=rules.convert_tindaisy_vcf_to_maf.output['maf'],
+        callers=rules.extract_tindaisy_vcf_callers.output[0],
+        prev_db_state=rules.add_gdc_mutation_to_db.output['db_state']
+    output: db_state=touch('processed_data/db_state/1_added_td_one_case/{case}')
+    params:
+        db=rules.add_gdc_mutation_to_db.output['db'],
+        db_table_name='tindaisy'
+    log: 'logs/db_add_tindaisy_mut/{case}.log'
+    script: 'scripts/add_maf_to_db.py'
+
+
+rule add_all_tindaisy_mafs:
+    """Add all TinDiasy outputs."""
+    input:
+        mafs=expand(rules.add_tindaisy_one_maf.output['db_state'], \
+                    case=case_to_remote_tindaisy_vcf.keys())
+    output:
+        db_state=touch('processed_data/db_state/1_added_td_all_cases')
+
+
+rule add_tindaisy_raw_merged_one_maf:
+    """Add TinDaisy raw merged output of one GBM case into database."""
+    input:
+        maf='processed_data/tindaisy_raw_annotated_mafs/raw_merged/{case}.raw_merged.maf.gz',
+        callers='processed_data/tindaisy_raw_annotated_mafs/raw_merged/{case}.raw_merged.callers.tsv.gz',
+        prev_db_state=rules.add_all_tindaisy_mafs.output['db_state']
+    output: db_state=touch('processed_data/db_state/2_added_td_raw_merged_one_case/{case}')
+    params:
+        db=rules.add_gdc_mutation_to_db.output['db'],
+        db_table_name='tindaisy_raw_merged'
+    log: 'logs/db_add_tindaisy_raw_merged_mut/{case}.log'
+    script: 'scripts/add_maf_to_db.py'
+
+
+rule add_all_tindaisy_raw_merged_mafs:
+    """Add all TinDiasy raw merged outputs."""
+    input:
+        mafs=expand(rules.add_tindaisy_raw_merged_one_maf.output['db_state'], \
+                    case=case_to_remote_tindaisy_vcf.keys())
+    output:
+        db_state=touch('processed_data/db_state/3_added_td_raw_merged_all_cases')
