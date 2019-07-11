@@ -15,8 +15,8 @@ rule copy_bicseq2_cnv_one_sample:
         seg_cnv='external_data/bicseq2_cnv/{sample}/segmentation/{sample}.cnv'
     shell:
         """
-        rsync -a {input.gene_cnv} {output.gene_cnv}
-        rsync -a {input.seg_cnv} {output.seg_cnv}
+        gzip -c -9 {input.gene_cnv} > {output.gene_cnv}
+        gzip -c -9 {input.seg_cnv} > {output.seg_cnv}
         """
 
 
