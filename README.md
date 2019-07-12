@@ -42,7 +42,7 @@ Download GDC RNA-Seq count files for both TCGA and CPTAC GBM samples.
 ### `201907_methylation_array` on denali
 Process batch 1-9 DNA methylation array data.
 
-### `201907_somatic_mutation` on katmai
+### `201907_somatic_mutation` on denali
 Collect TinDaisy and GDC somatic mutation calls and annoate the raw VCFs.
 
 
