@@ -245,17 +245,22 @@ rule all_gdc_mafs:
                               sample=GDC_SAMPLES, caller=GDC_CALLERS)
 
 
-rule all_raw_tindaisy_mafs:
-    """All TinDiasy raw outputs in annotated MAF."""
-    input: expand(                                               \
+rule all_tindaisy_mafs:
+    """All TinDaisy raw and filtered  MAFs."""
+    input: 
+        maf=expand(rules.convert_tindaisy_vcf_to_maf.output['maf'], 
+                   case=case_to_remote_tindaisy_vcf.keys()),
+        callers=expand(rules.extract_tindaisy_vcf_callers.output[0],
+                       case=case_to_remote_tindaisy_vcf.keys()),
+        raw_mafs=expand(                                         \
             rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
             case=case_to_remote_tindaisy_vcf.keys(),             \
             raw_type=['raw_merged', 'raw_merged_filtered']       \
         ),                                                       \
-        expand( \
-            rules.extract_tindaisy_raw_vcf_callers.output[0], \
-            case=case_to_remote_tindaisy_vcf.keys(), \
-            raw_type=['raw_merged', 'raw_merged_filtered'] \
+        raw_maf_callers=expand(                                  \
+            rules.extract_tindaisy_raw_vcf_callers.output[0],    \
+            case=case_to_remote_tindaisy_vcf.keys(),             \
+            raw_type=['raw_merged', 'raw_merged_filtered']       \
         )
 
 
