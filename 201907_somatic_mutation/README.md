@@ -14,7 +14,14 @@ and GDC.
 ## Pipeline execution
 Load the somatic mutations by TinDaisy and GDC:
 
+    # Copy/link raw VCFs
     snakemake link_gdc_raw_vcfs link_gdc_annotated_vcfs link_tindaisy_vcfs
+
+    # Convert and annotation VCFs to be MAFs
     snakemake all_gdc_mafs all_tindaisy_mafs
+
+    # Load mutations into SQLite database
     snakemake add_gdc_mutation_to_db add_all_tindaisy_mafs add_all_tindaisy_raw_merged_mafs
 
+    # Combine TinDaisy MAFs into one MAF
+    snakemake all_combined_tindaisy_mafs

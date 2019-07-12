@@ -254,7 +254,7 @@ rule link_tindaisy_vcfs:
 
 
 rule all_tindaisy_mafs:
-    """All TinDaisy raw and filtered  MAFs."""
+    """All TinDaisy raw and filtered MAFs."""
     input:
         maf=expand(rules.convert_tindaisy_vcf_to_maf.output['maf'],
                    case=case_to_remote_tindaisy_vcf.keys()),
@@ -328,3 +328,48 @@ rule add_all_tindaisy_raw_merged_mafs:
                     case=case_to_remote_tindaisy_vcf.keys())
     output:
         db_state=touch('processed_data/db_state/3_added_td_raw_merged_all_cases')
+
+
+def find_tindaisy_maf_types(wildcards):
+    """Return different TinDaisy MAF sets."""
+    if wildcards.maf_type == 'filtered':
+        maf_pth_fmt = rules.convert_tindaisy_vcf_to_maf.output['maf']
+        caller_pth_fmt = rules.extract_tindaisy_vcf_callers.output[0]
+    elif wildcards.maf_type == 'raw':
+        maf_pth_fmt = (
+            'processed_data/tindaisy_raw_annotated_mafs/'
+            'raw_merged/{case}.raw_merged.maf.gz'
+        )
+        caller_pth_fmt = (
+            'processed_data/tindaisy_raw_annotated_mafs/'
+            'raw_merged/{case}.raw_merged.callers.tsv.gz'
+        )
+    elif wildcards.maf_type == 'raw_multicaller':
+        maf_pth_fmt = (
+            'processed_data/tindaisy_raw_annotated_mafs/'
+            'raw_merged_filtered/{case}.raw_merged_filtered.maf.gz'
+        )
+        caller_pth_fmt = (
+            'processed_data/tindaisy_raw_annotated_mafs/'
+            'raw_merged_filtered/{case}.raw_merged_filtered.callers.tsv.gz'
+        )
+    else:
+        raise ValueError(f'Unknown maf type: {wildcards.maf_type}')
+    all_cases = sorted(case_to_remote_tindaisy_vcf.keys())
+    return {
+        'maf': expand(maf_pth_fmt, case=all_cases),
+        'callers': expand(caller_pth_fmt, case=all_cases)
+    }
+
+
+rule combine_all_tindaisy_mafs:
+    """Combine all TinDaisy MAF into one and add back caller information."""
+    output: 'processed_data/combined_tindaisy_mafs/tindaisy_all_cases_{maf_type}.maf.gz'
+    input: unpack(find_tindaisy_maf_types)
+    script: 'scripts/combine_tindaisy_mafs.py'
+
+
+rule all_combined_tindaisy_mafs:
+    """All combined TinDaisy MAFs."""
+    input: expand(rules.combine_all_tindaisy_mafs.output[0], \
+                  maf_type=['filtered', 'raw', 'raw_multicaller'])
