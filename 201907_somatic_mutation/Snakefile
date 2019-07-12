@@ -244,11 +244,19 @@ rule all_gdc_mafs:
         annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
                               sample=GDC_SAMPLES, caller=GDC_CALLERS)
 
+rule link_tindaisy_vcfs:
+    input:
+        vcfs=expand('external_data/tindaisy_vcfs/{case}.vcf',
+                case=case_to_remote_tindaisy_vcf.keys()),
+        raw_vcfs=expand('external_data/tindaisy_vcfs/{case}.{raw_type}.vcf',
+                case=case_to_remote_tindaisy_vcf.keys(),
+                raw_type=['raw_merged', 'raw_merged_filtered'])
+
 
 rule all_tindaisy_mafs:
     """All TinDaisy raw and filtered  MAFs."""
-    input: 
-        maf=expand(rules.convert_tindaisy_vcf_to_maf.output['maf'], 
+    input:
+        maf=expand(rules.convert_tindaisy_vcf_to_maf.output['maf'],
                    case=case_to_remote_tindaisy_vcf.keys()),
         callers=expand(rules.extract_tindaisy_vcf_callers.output[0],
                        case=case_to_remote_tindaisy_vcf.keys()),
