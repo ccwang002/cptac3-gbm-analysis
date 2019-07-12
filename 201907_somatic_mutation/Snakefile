@@ -35,9 +35,9 @@ rule link_gdc_raw_vcfs:
                 src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
                 dst_pth = Path(f'external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz')
                 # Symlink only works on the same machine
-                dst_pth.symlink_to(src_vcf_pth)
+                # dst_pth.symlink_to(src_vcf_pth)
                 # Copy the file directly
-                # shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
+                shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
 
 
 rule link_gdc_annotated_vcfs:
@@ -55,9 +55,9 @@ rule link_gdc_annotated_vcfs:
                 src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
                 dst_pth = Path(f'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz')
                 # Symlink only works on the same machine
-                dst_pth.symlink_to(src_vcf_pth)
+                # dst_pth.symlink_to(src_vcf_pth)
                 # Copy the file directly
-                # shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
+                shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
 
 
 rule annotated_vcf_to_maf:
