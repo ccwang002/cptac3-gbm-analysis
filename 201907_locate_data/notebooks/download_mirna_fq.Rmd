@@ -1,0 +1,61 @@
+---
+title: "Download miRNA-seq FASTQs"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+cohort_seq_tbl <- read_tsv('../tracked_results/cptac3_gbm_seq_status.tsv')
+```
+
+```{r}
+discovery_cases <- cohort_seq_tbl %>% filter(in_discovery) %>% pull(case)
+```
+
+
+```{r}
+gbm_seq_data <- read_tsv(
+    '../../matt_catalog/CPTAC3.AR.dat',
+    col_types = cols(.default = col_character(), filesize = col_double())
+) %>%
+    rename(sample_name = `# sample_name`) %>%
+    filter(disease == 'GBM') 
+```
+
+```{r}
+bam_maps <- list.files('../../matt_catalog', '.*.BamMap.dat$', full.names = TRUE) %>%
+    set_names(str_match(., '.*/([^.]+).BamMap.dat$')[, 2]) %>%
+    map(function(pth) {
+        read_tsv(pth, col_types = cols(.default = col_character(), filesize = col_double())) %>%
+            rename(sample_name = `# sample_name`) %>%
+            filter(disease == 'GBM')
+    })
+```
+
+
+```{r}
+all_mirna_fq_tbl <- gbm_seq_data %>%
+    filter(experimental_strategy == 'miRNA-Seq', data_format == 'FASTQ')
+```
+
+```{r}
+katmai_mirna_fq_tbl <- bam_maps$katmai %>% 
+    filter(experimental_strategy == 'miRNA-Seq', data_format == 'FASTQ')
+```
+
+Katmai has some miRNA samples to be removed:
+```{r}
+katmai_mirna_fq_tbl %>%
+    filter(!sample_name %in% all_mirna_fq_tbl$sample_name)
+```
+
+New miRNA samples:
+```{r}
+all_mirna_fq_tbl %>%
+    filter(!sample_name %in% katmai_mirna_fq_tbl$sample_name)
+```
+
+
