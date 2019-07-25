@@ -7,6 +7,7 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
 
@@ -1711,28 +1712,10 @@ summary {
 }
 </style>
 
-<script>
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-</script>
-
 <!-- code folding -->
 <style type="text/css">
 .code-folding-btn { margin-bottom: 4px; }
 </style>
-<script>
-$(document).ready(function () {
-  window.initializeSourceEmbed("find_cases_to_run_cnv_and_mutation.Rmd");
-  window.initializeCodeFolding("show" === "show");
-});
-</script>
 
 
 
@@ -1803,32 +1786,12 @@ cols(
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-<p>Latest custom WXS/WGS BAM map</p>
+<p>Read MGI BAM map</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxud2dzX2N1c3RvbV9iYW1fdGJsIDwtIHJlYWRfdHN2KCcuLi90cmFja2VkX3Jlc3VsdHMvTUdJLkdCTV9jdXN0b21fd2dzLkJhbU1hcC5kYXQnKSAlPiVcbiAgICByZW5hbWUoc2FtcGxlX25hbWUgPSBgIyBzYW1wbGVfbmFtZWApXG5gYGAifQ== -->
-<pre class="r"><code>wgs_custom_bam_tbl &lt;- read_tsv('../tracked_results/MGI.GBM_custom_wgs.BamMap.dat') %&gt;%
-    rename(sample_name = `# sample_name`)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiUGFyc2VkIHdpdGggY29sdW1uIHNwZWNpZmljYXRpb246XG5jb2xzKFxuICBgIyBzYW1wbGVfbmFtZWAgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgY2FzZSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBkaXNlYXNlID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIGV4cGVyaW1lbnRhbF9zdHJhdGVneSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBzYW1wbGVfdHlwZSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBkYXRhX3BhdGggPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgZmlsZXNpemUgPSBcdTAwMWJbMzJtY29sX2RvdWJsZSgpXHUwMDFiWzM5bSxcbiAgZGF0YV9mb3JtYXQgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgcmVmZXJlbmNlID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIFVVSUQgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgc3lzdGVtID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW1cbilcbiJ9 -->
-<pre><code>Parsed with column specification:
-cols(
-  `# sample_name` = [31mcol_character()[39m,
-  case = [31mcol_character()[39m,
-  disease = [31mcol_character()[39m,
-  experimental_strategy = [31mcol_character()[39m,
-  sample_type = [31mcol_character()[39m,
-  data_path = [31mcol_character()[39m,
-  filesize = [32mcol_double()[39m,
-  data_format = [31mcol_character()[39m,
-  reference = [31mcol_character()[39m,
-  UUID = [31mcol_character()[39m,
-  system = [31mcol_character()[39m
-)</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxud3hzX2N1c3RvbV9iYW1fdGJsIDwtIHJlYWRfdHN2KCcuLi90cmFja2VkX3Jlc3VsdHMvTUdJLkdCTV9jdXN0b21fd3hzLkJhbU1hcC5kYXQnKSAlPiVcbiAgICByZW5hbWUoc2FtcGxlX25hbWUgPSBgIyBzYW1wbGVfbmFtZWApXG5gYGAifQ== -->
-<pre class="r"><code>wxs_custom_bam_tbl &lt;- read_tsv('../tracked_results/MGI.GBM_custom_wxs.BamMap.dat') %&gt;%
-    rename(sample_name = `# sample_name`)</code></pre>
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubWdpX2JhbV90YmwgPSByZWFkX3RzdignLi4vLi4vbWF0dF9jYXRhbG9nL01HSS5CYW1NYXAuZGF0JylcblxuYGBgIn0= -->
+<pre class="r"><code>mgi_bam_tbl = read_tsv('../../matt_catalog/MGI.BamMap.dat')
+</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-output-begin eyJkYXRhIjoiUGFyc2VkIHdpdGggY29sdW1uIHNwZWNpZmljYXRpb246XG5jb2xzKFxuICBgIyBzYW1wbGVfbmFtZWAgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgY2FzZSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBkaXNlYXNlID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIGV4cGVyaW1lbnRhbF9zdHJhdGVneSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBzYW1wbGVfdHlwZSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBkYXRhX3BhdGggPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgZmlsZXNpemUgPSBcdTAwMWJbMzJtY29sX2RvdWJsZSgpXHUwMDFiWzM5bSxcbiAgZGF0YV9mb3JtYXQgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgcmVmZXJlbmNlID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIFVVSUQgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgc3lzdGVtID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW1cbilcbiJ9 -->
 <pre><code>Parsed with column specification:
@@ -1848,6 +1811,72 @@ cols(
 <!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
+<div id="find-cases-to-run-somatic-mutation" class="section level2">
+<h2>Find cases to run somatic mutation</h2>
+<p>Cases with GDC harmonized data before:</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY2FzZXNfd2l0aF9nZGNfYmFtX3RpbmRhaXN5ID0gcmVhZF90c3YoJy4uLy4uLzIwMTkwNF9sb2NhdGVfYWRob2NfZGF0YS90cmFja2VkX3Jlc3VsdHMvaGFybW9uaXplZF90aW5kYWlzeV92Y2ZzLnRzdicpICU+JVxuICAgIHB1bGwoYCMgY2FzZWApXG5gYGAifQ== -->
+<pre class="r"><code>cases_with_gdc_bam_tindaisy = read_tsv('../../201904_locate_adhoc_data/tracked_results/harmonized_tindaisy_vcfs.tsv') %&gt;%
+    pull(`# case`)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiUGFyc2VkIHdpdGggY29sdW1uIHNwZWNpZmljYXRpb246XG5jb2xzKFxuICBgIyBjYXNlYCA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICBkaXNlYXNlID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIHJlc3VsdF9wYXRoID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIHJlc3VsdF9mb3JtYXQgPSBcdTAwMWJbMzFtY29sX2NoYXJhY3RlcigpXHUwMDFiWzM5bSxcbiAgdHVtb3JfbmFtZSA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltLFxuICB0dW1vcl91dWlkID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIG5vcm1hbF9uYW1lID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIG5vcm1hbF91dWlkID0gXHUwMDFiWzMxbWNvbF9jaGFyYWN0ZXIoKVx1MDAxYlszOW0sXG4gIGNyb213ZWxsX3dpZCA9IFx1MDAxYlszMW1jb2xfY2hhcmFjdGVyKClcdTAwMWJbMzltXG4pXG4ifQ== -->
+<pre><code>Parsed with column specification:
+cols(
+  `# case` = [31mcol_character()[39m,
+  disease = [31mcol_character()[39m,
+  result_path = [31mcol_character()[39m,
+  result_format = [31mcol_character()[39m,
+  tumor_name = [31mcol_character()[39m,
+  tumor_uuid = [31mcol_character()[39m,
+  normal_name = [31mcol_character()[39m,
+  normal_uuid = [31mcol_character()[39m,
+  cromwell_wid = [31mcol_character()[39m
+)</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Make sure all the remaining discovery tumor has gdc wxs BAMs</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY29ob3J0X3NlcV90YmwudG9fcnVuX3RpbmRhaXN5ID0gY29ob3J0X3NlcV90YmwgJT4lXG4gICAgZmlsdGVyKGluX2Rpc2NvdmVyeSwgIWlzX2d0ZXhfbm9ybWFsKSAlPiUgXG4gICAgZmlsdGVyKCFjYXNlICVpbiUgY2FzZXNfd2l0aF9nZGNfYmFtX3RpbmRhaXN5KSBcblxuY29ob3J0X3NlcV90YmwudG9fcnVuX3RpbmRhaXN5ICU+JVxuICAgIGNvdW50KGhhc193eHNfbm9ybWFsX2dkYywgaGFzX3d4c190dW1vcl9nZGMpXG5gYGAifQ== -->
+<pre class="r"><code>cohort_seq_tbl.to_run_tindaisy = cohort_seq_tbl %&gt;%
+    filter(in_discovery, !is_gtex_normal) %&gt;% 
+    filter(!case %in% cases_with_gdc_bam_tindaisy) 
+
+cohort_seq_tbl.to_run_tindaisy %&gt;%
+    count(has_wxs_normal_gdc, has_wxs_tumor_gdc)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-frame-begin eyJtZXRhZGF0YSI6eyJjbGFzc2VzIjpbInRibF9kZiIsInRibCIsImRhdGEuZnJhbWUiXSwibmNvbCI6MywibnJvdyI6MX0sInJkZiI6Ikg0c0lBQUFBQUFBQUErMVZ6VkxESUJEZUpJM2ErRytmbzcxNFVFOWVIQi9BMFJsdkRCS2FNbExJQUxIMTVpUDdCQ3BKSUdteGpqZkhRek9UQUx2N2ZRdFpacis3bThmejdERURnQVNTblFpUzFFNGhmYmkvSFY4Q0RHSzdpR0FBdzNwYzJxQlJFd21RTlk3MlhaMGZ1dkVxQUtjQ3o2bTJrNU9Hb0RXZXpiQkdpNlZHUXFvNTVxaklpZk9jZW8rcDVsS3RPQ0lSRWhPT3RTZjJ4aXpIQmsrbXl1WU13b2RLTGlaK0wvVm00emY3K2JSUEVEalFKU1g5Z2VOUm02SlpReHViZkxxMHNjT01pT1NjRW1OM1RHWllZV0tvOG5rN2wxMTgvQkhQYWMvRFpjRUk1bHVXTGN1VzVaK3oxT2pZbzA5OFB5SllVemZmSjFnUXFwQjVMYjNwZ0FtVU0wM2tDMVd2em5iRU5Db01YYnIyMmxrRjBrd1VuQ0k5azJhdDRSYSs0U3E4V092UlJkZWplMDhBNlh0MENQbXhyWWRabGo5bTJhQUV2NGlIRW5oemx0cnhMY3VvOXN6Wk91ajNraDczSlMwcWFtVm9jMEhoeUw3UjlUdEF6OVVWT09rS0xMa24yTTNwRkZmY0YyZWduMWtaYk1IcjFKNkZvVmFybWxRZmdZN3R5dEl3S2JTVHNEU0FSeW93SEZlaWxzZDhUR2FWZUI1ZlFLL3Y5ZVAxZlZYcmsrQkVxYVBhb2FKZ3d0L1FsT01uMmwxQ0s4T05DazlLeFlRL1oyYXRlbUtrNlM1clZ2OFVaM0huK3dKSXdpMHNzZ2dBQUE9PSJ9 -->
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["has_wxs_normal_gdc"],"name":[1],"type":["lgl"],"align":["right"]},{"label":["has_wxs_tumor_gdc"],"name":[2],"type":["lgl"],"align":["right"]},{"label":["n"],"name":[3],"type":["int"],"align":["right"]}],"data":[{"1":"TRUE","2":"TRUE","3":"57"}],"options":{"columns":{"min":{},"max":[10],"total":[3]},"rows":{"min":[10],"max":[10],"total":[1]},"pages":{}}}
+  </script>
+</div>
+<!-- rnb-frame-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Make sure all the BAMs are on MGI:</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-frame-begin eyJtZXRhZGF0YSI6eyJjbGFzc2VzIjpbInRibF9kZiIsInRibCIsImRhdGEuZnJhbWUiXSwibmNvbCI6MiwibnJvdyI6Mn0sInJkZiI6Ikg0c0lBQUFBQUFBQUErMVZ6VXZETUJUUDFuVWZuWE9DZUJjOGJ4Y1I5T1JGQksvaVlMZVNwYTliV1pxVUpFWG55VC9adjJBemFaT09CUVZ2aWxobzgvTHlQbi9sL2ZKNE43K001aEZDS0VCQnQ0V0NVSXNvbkQzZFQ2NFI2clQxcG9VNmFHRFdGMjEwcWdXalBLblcrdUJvUVRsUFlzWkZqcW5WaGFyTXVkREN5RHJjMU85QnhKRGhIS1FYYlNoeFhsQ0kxYVlBbDVuNWpvUmk2UnlkTWtxd3d0TlU2SmllK1VEdzU2bkxWUlgwcGorNzNXN3JHWFprQWNSMkdXZ3pzdzd0SHRXMndjNnI5NVJ3U29Fb0xtS3l3Z0lUQmNMbGJZNzBadnNmNTFmRU9kbkhTWGk1b1BBWG12cUJPTWEvN2Z5SDFtaDBjVzdIMTR5Ym15cUNwWk43U1NaaHZ6MkRsd0pFbGdOVG1NWlNDYXhndWZtYUNRWm14dU1DcTVWVjlOT01nc3hlbmNHd01rZ05GYWxtK2lFRkFZdzA5Y3htRDNkVzdzcU5WSkIvQTVyeEhwcGxDWnA5UG9jRkhldTNkZnVPMEQ1V0ExUFFJTUtwYkJDQkZKZlVWZHVSNjZ6d1NuRDAxTmR1Y1UxUlZTcWZ2bnE4VUJsbjBqSlg2TG0zaEtjWWw4ejhwbVJDVmlWYlQ2NjBLcXFPNjJkazVmYWhmTkJSNkhBRXRzeVlRemlrZUFIdUtqalc3RnVSNzdRUUdYTjlSbG9ycDRxcjVzcUlEQ2hXWS92N0FHdElVWWVlQmdBQSJ9 -->
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["sample_type"],"name":[1],"type":["chr"],"align":["left"]},{"label":["n"],"name":[2],"type":["int"],"align":["right"]}],"data":[{"1":"blood_normal","2":"57"},{"1":"tumor","2":"57"}],"options":{"columns":{"min":{},"max":[10],"total":[2]},"rows":{"min":[10],"max":[10],"total":[2]},"pages":{}}}
+  </script>
+</div>
+<!-- rnb-frame-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY29ob3J0X3NlcV90YmwudG9fcnVuX3RpbmRhaXN5ICU+JSBwdWxsKGNhc2UpICU+JVxuICAgIHdyaXRlX2xpbmVzKCcuLi90cmFja2VkX3Jlc3VsdHMvY2FzZXNfdG9fcnVuX3NvbWF0aWNfbXV0YXRpb24ubGlzdCcpXG5gYGAifQ== -->
+<pre class="r"><code>cohort_seq_tbl.to_run_tindaisy %&gt;% pull(case) %&gt;%
+    write_lines('../tracked_results/cases_to_run_somatic_mutation.list')</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+</div>
 <div id="find-cases-to-run-cnv" class="section level2">
 <h2>Find cases to run CNV</h2>
 <!-- rnb-text-end -->
@@ -1899,59 +1928,10 @@ cases_to_run_cnv</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
-</div>
-<div id="find-cases-to-run-somatic-mutation" class="section level2">
-<h2>Find cases to run somatic mutation</h2>
 <!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY2FzZXNfd2l0aF9tdXQgPC0gcmVhZF9saW5lcyhcbiAgICAnLi4vZ2Vub21pY19kb3duc3RyZWFtX2F2YWlsYWJpbGl0eS93dXN0bF9zb21hdGljX211dGF0aW9uX2Nhc2VzLmxpc3QnXG4pXG5gYGAifQ== -->
-<pre class="r"><code>cases_with_mut &lt;- read_lines(
-    '../genomic_downstream_availability/wustl_somatic_mutation_cases.list'
-)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY2FzZXNfdG9fcnVuX211dCA8LSB3eHNfY3VzdG9tX2JhbV90YmwgJT4lIHB1bGwoY2FzZSkgJT4lIHVuaXF1ZSgpICU+JSBzZXRkaWZmKGNhc2VzX3dpdGhfbXV0KVxuY2FzZXNfdG9fcnVuX211dFxuYGBgIn0= -->
-<pre class="r"><code>cases_to_run_mut &lt;- wxs_custom_bam_tbl %&gt;% pull(case) %&gt;% unique() %&gt;% setdiff(cases_with_mut)
-cases_to_run_mut</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiWzFdIFwiQzNMLTAzMzg3XCIgXCJDM0wtMDMzOTBcIiBcIkMzTC0wMzQwMFwiIFwiQzNMLTAzNDA1XCJcbiJ9 -->
-<pre><code>[1] &quot;C3L-03387&quot; &quot;C3L-03390&quot; &quot;C3L-03400&quot; &quot;C3L-03405&quot;</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY29ob3J0X3NlcV90YmwgJT4lXG4gICAgZmlsdGVyKFxuICAgICAgICAhY2FzZSAlaW4lIHVuaW9uKGNhc2VzX3dpdGhfbXV0LCBjYXNlc190b19ydW5fbXV0KSxcbiAgICAgICAgaGFzX3d4c19ub3JtYWxfcmF3ICYgaGFzX3d4c190dW1vcl9yYXcsXG4gICAgICAgICFpc19ndGV4X25vcm1hbFxuICAgICkgJT4lIFxuICAgIHNlbGVjdChjYXNlLCBpbl9kaXNjb3ZlcnkpXG5gYGAifQ== -->
-<pre class="r"><code>cohort_seq_tbl %&gt;%
-    filter(
-        !case %in% union(cases_with_mut, cases_to_run_mut),
-        has_wxs_normal_raw &amp; has_wxs_tumor_raw,
-        !is_gtex_normal
-    ) %&gt;% 
-    select(case, in_discovery)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-frame-begin eyJtZXRhZGF0YSI6eyJjbGFzc2VzIjpbInNwZWNfdGJsX2RmIiwidGJsX2RmIiwidGJsIiwiZGF0YS5mcmFtZSJdLCJuY29sIjoyLCJucm93IjoxNX0sInJkZiI6Ikg0c0lBQUFBQUFBQUE2V1MyMDZFTUJDR3k2RnJJSzY3aWM4QktXZTQxbmkxOGNKb3NuZW1BaW9SMncyd0h1NThaVjlnc1dYYlpKbGJTWUNaaitrL25iL2NYVzhqZCtzaWhDeGtMUXhrWVJFaS9IQi80K1VJMmFaSURHUWpSNzYvUk5HbENDUmNpM3VsUGpoWDBjWWpoQVFwQk1VY2hHa0NRSmJQUVJTREpYRVlRd0FxRWdMYUppRVFUWXBnRHRJSWdtd093dXhVOU5ZalFWQmtjNUFuUkNUdVpNTy9ycG5IdUd4cDN5dC9OWFFyT2xEL3VhUHZOU2gzT3Y3cE04SGxrcVU4bWgveEdNZnhGK3Jxb3ZWMGZrZG9sN1N2Vlh6ZXNNZXE2VXYrVVhmZklqOEFnVE8rR3hyT2hJUXBmd0VNdG1oMEFLejNUTGFzdlBKMXo5NjhRSnRscUttWEtsNmR4T2F4cHowcUxheTBGalY3YVpqZUtXN3BVOTJxNUVJWU1JM203N3FHRGRvd1FYdC80QVBWZFc3SlcwMm00ZERoRHhCZkJFUDZBZ0FBIn0= -->
-<div data-pagedtable="false">
-<script data-pagedtable-source type="application/json">
-{"columns":[{"label":["case"],"name":[1],"type":["chr"],"align":["left"]},{"label":["in_discovery"],"name":[2],"type":["lgl"],"align":["right"]}],"data":[{"1":"C3L-00016","2":"FALSE"},{"1":"C3L-00019","2":"FALSE"},{"1":"C3L-00265","2":"FALSE"},{"1":"C3L-00278","2":"FALSE"},{"1":"C3L-00349","2":"FALSE"},{"1":"C3L-00424","2":"FALSE"},{"1":"C3L-00429","2":"FALSE"},{"1":"C3L-00506","2":"FALSE"},{"1":"C3L-00528","2":"FALSE"},{"1":"C3L-00591","2":"FALSE"},{"1":"C3L-00631","2":"FALSE"},{"1":"C3L-00671","2":"FALSE"},{"1":"C3L-02706","2":"FALSE"},{"1":"C3N-01197","2":"FALSE"},{"1":"C3N-01850","2":"FALSE"}],"options":{"columns":{"min":{},"max":[10],"total":[2]},"rows":{"min":[10],"max":[10],"total":[15]},"pages":{}}}
-  </script>
-</div>
-<!-- rnb-frame-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuY2FzZXNfdG9fcnVuX211dCAlPiVcbiAgICB3cml0ZV9saW5lcygnLi4vdHJhY2tlZF9yZXN1bHRzL2Nhc2VzX3RvX3J1bl9zb21hdGljX211dGF0aW9uLmxpc3QnKVxuYGBgIn0= -->
-<pre class="r"><code>cases_to_run_mut %&gt;%
-    write_lines('../tracked_results/cases_to_run_somatic_mutation.list')</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-chunk-end -->
 </div>
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiUiBOb3RlYm9vayIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKYGBge3IsIG1lc3NhZ2U9RkFMU0V9CmxpYnJhcnkodGlkeXZlcnNlKQpgYGAKClJlYWQgY29ob3J0IHNlcXVlbmNlIGF2YWlsYWJpbGl0eSB0YWJsZQpgYGB7cn0KY29ob3J0X3NlcV90YmwgPC0gcmVhZF90c3YoJy4uL3RyYWNrZWRfcmVzdWx0cy9jcHRhYzNfZ2JtX3NlcV9zdGF0dXMudHN2JykKYGBgCgoKTGF0ZXN0IGN1c3RvbSBXWFMvV0dTIEJBTSBtYXAKYGBge3J9Cndnc19jdXN0b21fYmFtX3RibCA8LSByZWFkX3RzdignLi4vdHJhY2tlZF9yZXN1bHRzL01HSS5HQk1fY3VzdG9tX3dncy5CYW1NYXAuZGF0JykgJT4lCiAgICByZW5hbWUoc2FtcGxlX25hbWUgPSBgIyBzYW1wbGVfbmFtZWApCgp3eHNfY3VzdG9tX2JhbV90YmwgPC0gcmVhZF90c3YoJy4uL3RyYWNrZWRfcmVzdWx0cy9NR0kuR0JNX2N1c3RvbV93eHMuQmFtTWFwLmRhdCcpICU+JQogICAgcmVuYW1lKHNhbXBsZV9uYW1lID0gYCMgc2FtcGxlX25hbWVgKQpgYGAKCgoKIyMgRmluZCBjYXNlcyB0byBydW4gQ05WCmBgYHtyfQpjYXNlc193aXRoX2NudiA8LSByZWFkX2xpbmVzKAogICAgJy4uL2dlbm9taWNfZG93bnN0cmVhbV9hdmFpbGFiaWxpdHkvd3VzdGxfc29tYXRpY19jbnZfY2FzZXMubGlzdCcKKQpgYGAKCmBgYHtyfQpjYXNlc190b19ydW5fY252IDwtIHdnc19jdXN0b21fYmFtX3RibCAlPiUgcHVsbChjYXNlKSAlPiUgdW5pcXVlKCkgJT4lIHNldGRpZmYoY2FzZXNfd2l0aF9jbnYpCmNhc2VzX3RvX3J1bl9jbnYKYGBgCgpgYGB7cn0KY29ob3J0X3NlcV90YmwgJT4lCiAgICBmaWx0ZXIoCiAgICAgICAgIWNhc2UgJWluJSB1bmlvbihjYXNlc193aXRoX2NudiwgY2FzZXNfdG9fcnVuX2NudiksCiAgICAgICAgaGFzX3dnc19ub3JtYWxfcmF3ICYgaGFzX3dnc190dW1vcl9yYXcsCiAgICAgICAgIWlzX2d0ZXhfbm9ybWFsCiAgICApICU+JSAKICAgIHNlbGVjdChjYXNlLCBpbl9kaXNjb3ZlcnkpCmBgYAoKYGBge3J9CmNhc2VzX3RvX3J1bl9jbnYgJT4lCiAgICB3cml0ZV9saW5lcygnLi4vdHJhY2tlZF9yZXN1bHRzL2Nhc2VzX3RvX3J1bl9zb21hdGljX2Nudi5saXN0JykKYGBgCgoKIyMgRmluZCBjYXNlcyB0byBydW4gc29tYXRpYyBtdXRhdGlvbgpgYGB7cn0KY2FzZXNfd2l0aF9tdXQgPC0gcmVhZF9saW5lcygKICAgICcuLi9nZW5vbWljX2Rvd25zdHJlYW1fYXZhaWxhYmlsaXR5L3d1c3RsX3NvbWF0aWNfbXV0YXRpb25fY2FzZXMubGlzdCcKKQpgYGAKCmBgYHtyfQpjYXNlc190b19ydW5fbXV0IDwtIHd4c19jdXN0b21fYmFtX3RibCAlPiUgcHVsbChjYXNlKSAlPiUgdW5pcXVlKCkgJT4lIHNldGRpZmYoY2FzZXNfd2l0aF9tdXQpCmNhc2VzX3RvX3J1bl9tdXQKYGBgCgpgYGB7cn0KY29ob3J0X3NlcV90YmwgJT4lCiAgICBmaWx0ZXIoCiAgICAgICAgIWNhc2UgJWluJSB1bmlvbihjYXNlc193aXRoX211dCwgY2FzZXNfdG9fcnVuX211dCksCiAgICAgICAgaGFzX3d4c19ub3JtYWxfcmF3ICYgaGFzX3d4c190dW1vcl9yYXcsCiAgICAgICAgIWlzX2d0ZXhfbm9ybWFsCiAgICApICU+JSAKICAgIHNlbGVjdChjYXNlLCBpbl9kaXNjb3ZlcnkpCmBgYAoKYGBge3J9CmNhc2VzX3RvX3J1bl9tdXQgJT4lCiAgICB3cml0ZV9saW5lcygnLi4vdHJhY2tlZF9yZXN1bHRzL2Nhc2VzX3RvX3J1bl9zb21hdGljX211dGF0aW9uLmxpc3QnKQpgYGA=</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiUiBOb3RlYm9vayIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKYGBge3IsIG1lc3NhZ2U9RkFMU0V9CmxpYnJhcnkodGlkeXZlcnNlKQpgYGAKClJlYWQgY29ob3J0IHNlcXVlbmNlIGF2YWlsYWJpbGl0eSB0YWJsZQpgYGB7cn0KY29ob3J0X3NlcV90YmwgPC0gcmVhZF90c3YoJy4uL3RyYWNrZWRfcmVzdWx0cy9jcHRhYzNfZ2JtX3NlcV9zdGF0dXMudHN2JykKYGBgCgpSZWFkIE1HSSBCQU0gbWFwCmBgYHtyfQptZ2lfYmFtX3RibCA9IHJlYWRfdHN2KCcuLi8uLi9tYXR0X2NhdGFsb2cvTUdJLkJhbU1hcC5kYXQnKQpgYGAKCgoKIyMgRmluZCBjYXNlcyB0byBydW4gc29tYXRpYyBtdXRhdGlvbgoKQ2FzZXMgd2l0aCBHREMgaGFybW9uaXplZCBkYXRhIGJlZm9yZToKYGBge3J9CmNhc2VzX3dpdGhfZ2RjX2JhbV90aW5kYWlzeSA9IHJlYWRfdHN2KCcuLi8uLi8yMDE5MDRfbG9jYXRlX2FkaG9jX2RhdGEvdHJhY2tlZF9yZXN1bHRzL2hhcm1vbml6ZWRfdGluZGFpc3lfdmNmcy50c3YnKSAlPiUKICAgIHB1bGwoYCMgY2FzZWApCmBgYAoKTWFrZSBzdXJlIGFsbCB0aGUgcmVtYWluaW5nIGRpc2NvdmVyeSB0dW1vciBoYXMgZ2RjIHd4cyBCQU1zCmBgYHtyfQpjb2hvcnRfc2VxX3RibC50b19ydW5fdGluZGFpc3kgPSBjb2hvcnRfc2VxX3RibCAlPiUKICAgIGZpbHRlcihpbl9kaXNjb3ZlcnksICFpc19ndGV4X25vcm1hbCkgJT4lIAogICAgZmlsdGVyKCFjYXNlICVpbiUgY2FzZXNfd2l0aF9nZGNfYmFtX3RpbmRhaXN5KSAKCmNvaG9ydF9zZXFfdGJsLnRvX3J1bl90aW5kYWlzeSAlPiUKICAgIGNvdW50KGhhc193eHNfbm9ybWFsX2dkYywgaGFzX3d4c190dW1vcl9nZGMpCmBgYAoKTWFrZSBzdXJlIGFsbCB0aGUgQkFNcyBhcmUgb24gTUdJOgpgYGB7cn0KbWdpX2JhbV90YmwgJT4lCiAgICBmaWx0ZXIoY2FzZSAlaW4lIGNvaG9ydF9zZXFfdGJsLnRvX3J1bl90aW5kYWlzeSRjYXNlLAogICAgICAgICAgIGV4cGVyaW1lbnRhbF9zdHJhdGVneSA9PSAnV1hTJywgZGF0YV9mb3JtYXQgPT0gJ0JBTScsIHJlZmVyZW5jZSA9PSAnaGczOCcpICU+JQogICAgY291bnQoc2FtcGxlX3R5cGUpCmBgYAoKYGBge3J9CmNvaG9ydF9zZXFfdGJsLnRvX3J1bl90aW5kYWlzeSAlPiUgcHVsbChjYXNlKSAlPiUKICAgIHdyaXRlX2xpbmVzKCcuLi90cmFja2VkX3Jlc3VsdHMvY2FzZXNfdG9fcnVuX3NvbWF0aWNfbXV0YXRpb24ubGlzdCcpCmBgYAoKCgojIyBGaW5kIGNhc2VzIHRvIHJ1biBDTlYKYGBge3J9CmNhc2VzX3dpdGhfY252IDwtIHJlYWRfbGluZXMoCiAgICAnLi4vZ2Vub21pY19kb3duc3RyZWFtX2F2YWlsYWJpbGl0eS93dXN0bF9zb21hdGljX2Nudl9jYXNlcy5saXN0JwopCmBgYAoKYGBge3J9CmNhc2VzX3RvX3J1bl9jbnYgPC0gd2dzX2N1c3RvbV9iYW1fdGJsICU+JSBwdWxsKGNhc2UpICU+JSB1bmlxdWUoKSAlPiUgc2V0ZGlmZihjYXNlc193aXRoX2NudikKY2FzZXNfdG9fcnVuX2NudgpgYGAKCmBgYHtyfQpjb2hvcnRfc2VxX3RibCAlPiUKICAgIGZpbHRlcigKICAgICAgICAhY2FzZSAlaW4lIHVuaW9uKGNhc2VzX3dpdGhfY252LCBjYXNlc190b19ydW5fY252KSwKICAgICAgICBoYXNfd2dzX25vcm1hbF9yYXcgJiBoYXNfd2dzX3R1bW9yX3JhdywKICAgICAgICAhaXNfZ3RleF9ub3JtYWwKICAgICkgJT4lIAogICAgc2VsZWN0KGNhc2UsIGluX2Rpc2NvdmVyeSkKYGBgCgpgYGB7cn0KY2FzZXNfdG9fcnVuX2NudiAlPiUKICAgIHdyaXRlX2xpbmVzKCcuLi90cmFja2VkX3Jlc3VsdHMvY2FzZXNfdG9fcnVuX3NvbWF0aWNfY252Lmxpc3QnKQpgYGAKCgo=</div>
 
 
 
@@ -1980,6 +1960,29 @@ $(document).ready(function () {
 });
 
 </script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeSourceEmbed("find_cases_to_run_cnv_and_mutation.Rmd");
+  window.initializeCodeFolding("show" === "show");
+});
+</script>
+
 
 <!-- dynamically load mathjax for compatibility with self-contained -->
 <script>

@@ -12,14 +12,42 @@ Read cohort sequence availability table
 cohort_seq_tbl <- read_tsv('../tracked_results/cptac3_gbm_seq_status.tsv')
 ```
 
-
-Latest custom WXS/WGS BAM map
+Read MGI BAM map
 ```{r}
-wgs_custom_bam_tbl <- read_tsv('../tracked_results/MGI.GBM_custom_wgs.BamMap.dat') %>%
-    rename(sample_name = `# sample_name`)
+mgi_bam_tbl = read_tsv('../../matt_catalog/MGI.BamMap.dat')
+```
 
-wxs_custom_bam_tbl <- read_tsv('../tracked_results/MGI.GBM_custom_wxs.BamMap.dat') %>%
-    rename(sample_name = `# sample_name`)
+
+
+## Find cases to run somatic mutation
+
+Cases with GDC harmonized data before:
+```{r}
+cases_with_gdc_bam_tindaisy = read_tsv('../../201904_locate_adhoc_data/tracked_results/harmonized_tindaisy_vcfs.tsv') %>%
+    pull(`# case`)
+```
+
+Make sure all the remaining discovery tumor has gdc wxs BAMs
+```{r}
+cohort_seq_tbl.to_run_tindaisy = cohort_seq_tbl %>%
+    filter(in_discovery, !is_gtex_normal) %>% 
+    filter(!case %in% cases_with_gdc_bam_tindaisy) 
+
+cohort_seq_tbl.to_run_tindaisy %>%
+    count(has_wxs_normal_gdc, has_wxs_tumor_gdc)
+```
+
+Make sure all the BAMs are on MGI:
+```{r}
+mgi_bam_tbl %>%
+    filter(case %in% cohort_seq_tbl.to_run_tindaisy$case,
+           experimental_strategy == 'WXS', data_format == 'BAM', reference == 'hg38') %>%
+    count(sample_type)
+```
+
+```{r}
+cohort_seq_tbl.to_run_tindaisy %>% pull(case) %>%
+    write_lines('../tracked_results/cases_to_run_somatic_mutation.list')
 ```
 
 
@@ -52,29 +80,3 @@ cases_to_run_cnv %>%
 ```
 
 
-## Find cases to run somatic mutation
-```{r}
-cases_with_mut <- read_lines(
-    '../genomic_downstream_availability/wustl_somatic_mutation_cases.list'
-)
-```
-
-```{r}
-cases_to_run_mut <- wxs_custom_bam_tbl %>% pull(case) %>% unique() %>% setdiff(cases_with_mut)
-cases_to_run_mut
-```
-
-```{r}
-cohort_seq_tbl %>%
-    filter(
-        !case %in% union(cases_with_mut, cases_to_run_mut),
-        has_wxs_normal_raw & has_wxs_tumor_raw,
-        !is_gtex_normal
-    ) %>% 
-    select(case, in_discovery)
-```
-
-```{r}
-cases_to_run_mut %>%
-    write_lines('../tracked_results/cases_to_run_somatic_mutation.list')
-```
