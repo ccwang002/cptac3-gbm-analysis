@@ -73,8 +73,7 @@ samples_with_vcf <- gbm_raw_vcf_manifest %>%
 nrow(gbm_raw_vcf_manifest) == 4 * length(samples_with_vcf)
 ```
 
-
 Write the filtered manifest.
 ```{r}
-write_tsv(gbm_annotated_vcf_manifest, '../tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt')
+write_tsv(gbm_raw_vcf_manifest, '../tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt')
 ```
