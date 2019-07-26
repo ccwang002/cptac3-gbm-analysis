@@ -10,6 +10,19 @@ and GDC.
         snakemake-minimal sqlalchemy cyvcf2 \
         samtools=1.9 htslib=1.9
 
+Additionally, download [gdc-client].
+
+[gdc-client]: https://gdc.cancer.gov/access-data/gdc-data-transfer-tool
+
+
+## Download GDC VCFs
+
+    ./gdc-client download \
+        -n 5 --retry-amount 2 \
+        -t external_data/gdc_tokens/gdc-user-token.2019-07-15T02_36_07.394Z.txt \
+        -m gdc_all_gbm_discovery_vcf_manifest.tsv \
+        -d external_data/gdc_client_download
+
 
 ## Pipeline execution
 Load the somatic mutations by TinDaisy and GDC:
