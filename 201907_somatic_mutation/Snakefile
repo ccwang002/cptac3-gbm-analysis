@@ -3,9 +3,8 @@ from pathlib import Path
 import re
 from textwrap import dedent
 
-GDC_VCF_ROOT = '/diskmnt/Projects/cptac_downloads/gdc_somatic_mutations/unversioned'
-GDC_RAW_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_raw_vcfs_manifest.txt'
-GDC_ANNOTATED_VCF_MANIFEST = '../201901_locate_discovery_data/tracked_results/CPTAC3_GBM_GDC_annotated_vcfs_manifest.txt'
+GDC_VCF_ROOT = 'external_data/gdc_client_download'
+GDC_VCF_MANIFEST = 'gdc_all_gbm_discovery_vcf_manifest.tsv'
 GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse']
 TINDAISY_VCF_CUSTOM_HARMONIZED_PTH = '../201907_locate_data/tracked_results/washu_realigned_tindaisy_vcfs.tsv'
 TINDAISY_VCF_HARMONIZED_PTH = '../201907_locate_data/tracked_results/gdc_harmonized_tindaisy_vcsf.tsv'
@@ -14,50 +13,37 @@ VEP_CACHE_ROOT='/diskmnt/Datasets/VEP'
 
 # Samples with GDC VCFs available
 GDC_SAMPLES = set()
-with open(GDC_ANNOTATED_VCF_MANIFEST) as f:
+with open(GDC_VCF_MANIFEST) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
-    GDC_SAMPLES = set(row['case ID'] for row in reader)
+    GDC_SAMPLES = set(row['case_submitter_id'] for row in reader)
 
 
 # GDC {{{
-rule link_gdc_raw_vcfs:
-    """Link the raw GDC VCFs locally."""
-    input: manifest=GDC_RAW_VCF_MANIFEST
-    output: expand('external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
+rule link_gdc_vcfs:
+    """Link the GDC VCFs locally."""
+    input: manifest=GDC_VCF_MANIFEST
+    output:
+        raw_vcfs=expand('external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS),
+        annotated_vcfs=expand('external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
     params:
         vcf_root= GDC_VCF_ROOT
     run:
         with open(input['manifest']) as f:
             reader = csv.DictReader(f, dialect='excel-tab')
             for row in reader:
-                sample = row['case ID']
-                caller = row['file_name'].split('.')[-4].lower()
-                src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
-                dst_pth = Path(f'external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz')
+                sample = row['case_submitter_id']
+                caller, mutation_type = row['file_name'].lower().split('.')[-4:-2]
+                if mutation_type == 'somatic_annotation':
+                    dst_pth = Path(f'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz')
+                elif mutation_type == 'raw_somatic_mutation':
+                    dst_pth = Path(f'external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz')
+                else:
+                    raise ValueError(f'Unknown mutation type {mutation_type}')
+                src_vcf_pth = Path(params['vcf_root']).resolve() / row['id'] / row['file_name']
                 # Symlink only works on the same machine
-                # dst_pth.symlink_to(src_vcf_pth)
+                dst_pth.symlink_to(src_vcf_pth)
                 # Copy the file directly
-                shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
-
-
-rule link_gdc_annotated_vcfs:
-    """Link the annotated GDC VCFs locally."""
-    input: manifest=GDC_ANNOTATED_VCF_MANIFEST
-    output: expand('external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz', sample=GDC_SAMPLES, caller=GDC_CALLERS)
-    params:
-        vcf_root=GDC_VCF_ROOT
-    run:
-        with open(input['manifest']) as f:
-            reader = csv.DictReader(f, dialect='excel-tab')
-            for row in reader:
-                sample = row['case ID']
-                caller = row['file_name'].split('.')[-4].lower()
-                src_vcf_pth = Path(params['vcf_root'], row['id'], row['file_name'])
-                dst_pth = Path(f'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz')
-                # Symlink only works on the same machine
-                # dst_pth.symlink_to(src_vcf_pth)
-                # Copy the file directly
-                shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
+                # shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
 
 
 rule annotated_vcf_to_maf:
@@ -240,7 +226,7 @@ rule extract_tindaisy_raw_vcf_callers:
 rule all_gdc_mafs:
     """All GDC raw VCFs and filtered MAFs."""
     input:
-        raw_vcfs=rules.link_gdc_raw_vcfs.output,
+        raw_vcfs=rules.link_gdc_vcfs.output.raw_vcfs,
         annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
                               sample=GDC_SAMPLES, caller=GDC_CALLERS)
 
@@ -275,7 +261,7 @@ rule all_tindaisy_mafs:
 rule add_gdc_mutation_to_db:
     """Add GDC mutations (raw VCF and annotated MAF) to the database."""
     input:
-        raw_vcfs=rules.link_gdc_raw_vcfs.output,
+        raw_vcfs=rules.link_gdc_vcfs.output,
         annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
                               sample=GDC_SAMPLES, caller=GDC_CALLERS)
     output: db='processed_data/gbm_mut_calls.sqlite',
