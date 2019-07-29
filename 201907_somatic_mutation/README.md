@@ -33,8 +33,14 @@ Load the somatic mutations by TinDaisy and GDC:
     # Convert and annotation VCFs to be MAFs
     snakemake -j20 all_gdc_mafs all_tindaisy_mafs
 
+    # Combine TinDaisy MAFs into one MAF
+    snakemake all_combined_tindaisy_mafs all_combined_gdc_mafs
+
+Once the combined MAFs are generated, remove the individual MAFs by
+
+    rm -rf processed_data/gdc_mafs processed_data/tindaisy_mafs processed_data/tindaisy_raw_annotated_mafs
+
+Currently the database is not used:
+
     # Load mutations into SQLite database
     snakemake add_gdc_mutation_to_db add_all_tindaisy_mafs add_all_tindaisy_raw_merged_mafs
-
-    # Combine TinDaisy MAFs into one MAF
-    snakemake all_combined_tindaisy_mafs

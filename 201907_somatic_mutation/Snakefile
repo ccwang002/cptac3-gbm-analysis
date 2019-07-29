@@ -293,7 +293,7 @@ rule all_gdc_mafs:
         raw_vcfs=rules.link_gdc_vcfs.output.raw_vcfs,
         raw_annotated_mafs=expand(rules.convert_gdc_raw_annotated_vcf_to_maf.output['maf'],
                                   sample=GDC_SAMPLES, caller=GDC_CALLERS),
-        annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
+        annotated_mafs=expand(rules.convert_gdc_annotated_vcf_to_maf.output['maf'],
                               sample=GDC_SAMPLES, caller=GDC_CALLERS)
 
 rule link_tindaisy_vcfs:
@@ -415,7 +415,7 @@ def find_tindaisy_maf_types(wildcards):
 
 rule combine_all_tindaisy_mafs:
     """Combine all TinDaisy MAF into one and add back caller information."""
-    output: 'processed_data/combined_tindaisy_mafs/tindaisy_all_cases_{maf_type}.maf.gz'
+    output: 'processed_data/combined_mafs/tindaisy/tindaisy_all_cases_{maf_type}.maf.gz'
     input: unpack(find_tindaisy_maf_types)
     script: 'scripts/combine_tindaisy_mafs.py'
 
@@ -424,3 +424,30 @@ rule all_combined_tindaisy_mafs:
     """All combined TinDaisy MAFs."""
     input: expand(rules.combine_all_tindaisy_mafs.output[0], \
                   maf_type=['filtered', 'raw', 'raw_multicaller'])
+
+
+def find_gdc_maf_types(wildcards):
+    """Return GDC MAF sets."""
+    if wildcards.maf_type == 'somatic':
+        maf_pth_fmt = rules.convert_gdc_annotated_vcf_to_maf.output['maf']
+    elif wildcards.maf_type == 'raw':
+        maf_pth_fmt = rules.convert_gdc_raw_annotated_vcf_to_maf.output['maf']
+    else:
+        raise ValueError(f'Unknown maf type: {wildcards.maf_type}')
+    return {
+        'maf': expand(maf_pth_fmt, sample=GDC_SAMPLES, caller=wildcards.caller)
+    }
+
+
+rule combine_all_gdc_mafs:
+    """Combine all GDC MAFs of the same caller."""
+    output: 'processed_data/combined_mafs/gdc/{maf_type}/gdc_all_cases_{caller}_{maf_type}.maf.gz'
+    input: unpack(find_gdc_maf_types)
+    script: 'scripts/combine_gdc_mafs.py'
+
+
+rule all_combined_gdc_mafs:
+    """All combined GDC MAFs."""
+    input: expand(rules.combine_all_gdc_mafs.output[0], \
+                  maf_type=['somatic', 'raw'],          \
+                  caller=GDC_CALLERS)
