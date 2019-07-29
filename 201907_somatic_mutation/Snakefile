@@ -39,7 +39,7 @@ rule link_gdc_vcfs:
                     dst_pth = Path(f'external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz')
                 else:
                     raise ValueError(f'Unknown mutation type {mutation_type}')
-                src_vcf_pth = Path(params['vcf_root']).resolve() / row['id'] / row['file_name']
+                src_vcf_pth = Path('../../..') / params['vcf_root'] / row['id'] / row['file_name']
                 # Symlink only works on the same machine
                 dst_pth.symlink_to(src_vcf_pth)
                 # Copy the file directly
