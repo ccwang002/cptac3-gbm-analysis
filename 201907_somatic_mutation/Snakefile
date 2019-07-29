@@ -5,7 +5,7 @@ from textwrap import dedent
 
 GDC_VCF_ROOT = 'external_data/gdc_client_download'
 GDC_VCF_MANIFEST = 'gdc_all_gbm_discovery_vcf_manifest.tsv'
-GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse']
+GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse', 'pindel']
 TINDAISY_VCF_CUSTOM_HARMONIZED_PTH = '../201907_locate_data/tracked_results/washu_realigned_tindaisy_vcfs.tsv'
 TINDAISY_VCF_HARMONIZED_PTH = '../201907_locate_data/tracked_results/gdc_harmonized_tindaisy_vcsf.tsv'
 
@@ -46,7 +46,7 @@ rule link_gdc_vcfs:
                 # shell(f'rsync -a denali:{src_vcf_pth} {dst_pth}')
 
 
-rule annotated_vcf_to_maf:
+rule convert_gdc_annotated_vcf_to_maf:
     """Convert one annotated GDC VCF to MAF."""
     input: 'external_data/GDC/annotated_vcfs/{sample}.{caller}.vcf.gz'
     output:
@@ -67,6 +67,64 @@ rule annotated_vcf_to_maf:
             --filter-vcf 0 --ncbi-build GRCh38
         gzip -9 {params.uncompress_maf}
         ''')
+
+
+rule vep_annotate_gdc_vcf:
+    """Annotate GDC raw VCF using VEP."""
+    input: vcf='external_data/GDC/raw_vcfs/{sample}.{caller}.vcf.gz'
+    output: vcf=temp('processed_data/gdc_raw_annotated_vcfs/{sample}.{caller}.vep_v90.vcf')
+    params:
+        vep_cache=VEP_CACHE_ROOT,
+        buffer_size=5000
+    log: 'logs/gdc_raw_vep/{sample}.{caller}.vep.log'
+    threads: 4
+    shell:
+        # Match the VEP parameters used by TinDaisy (VEP cache version is 90)
+        # https://github.com/ding-lab/TinDaisy/blob/master/cwl/tools/vep_annotate.cwl
+        # Due to the SV annotation bug, we use a newer VEP tool on the old cache
+        # Ref: https://github.com/Ensembl/ensembl-vep/issues/227
+        dedent(r'''
+        docker run -i --rm -u $(id -u):$(id -g)     \
+            -v {params.vep_cache}:/home/vep/.vep    \
+            -v $PWD:/project_root                   \
+            ensemblorg/ensembl-vep:release_96.3     \
+                vep --cache --offline --vcf --no_stats --quiet              \
+                    --cache_version 90 --dir_cache /home/vep/.vep           \
+                    --assembly GRCh38                                       \
+                    --fork {threads} --buffer_size {params.buffer_size}     \
+                    --hgvs --shift_hgvs 1 --no_escape   \
+                    --symbol --numbers --ccds --uniprot --xref_refseq       \
+                    --sift b --tsl --canonical          \
+                    --total_length --allele_number      \
+                    --variant_class --biotype           \
+                    --flag_pick_allele                  \
+                    --pick_order tsl,biotype,rank,canonical,ccds,length     \
+                    -i /project_root/{input.vcf}                            \
+                    -o /project_root/{output.vcf}                           \
+                    --warning_file /project_root/{log}
+        ''')
+
+
+rule convert_gdc_raw_annotated_vcf_to_maf:
+    """Convert one annotated GDC VCF to MAF."""
+    input: vcf=rules.vep_annotate_gdc_vcf.output['vcf']
+    output:
+        maf='processed_data/gdc_raw_annotated_mafs/{sample}.{caller}.maf.gz'
+    params:
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
+        uncompress_maf='processed_data/gdc_raw_annotated_mafs/{sample}.{caller}.maf'
+    shell:
+        dedent(r'''
+        perl {params.vcf2maf} \
+            --input-vcf {input.vcf} --output-maf {params.uncompress_maf} \
+            --tumor-id {wildcards.sample}_T --normal-id {wildcards.sample}_N \
+            --vcf-tumor-id TUMOR --vcf-normal-id NORMAL \
+            --filter-vcf 0 --ncbi-build GRCh38
+        gzip -9 {params.uncompress_maf}
+        ''')
+
 # }}}
 
 
@@ -105,6 +163,8 @@ rule download_tindaisy_vcf:
     params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_vcf[wildcards.case]
     wildcard_constraints:
         case='[^.]+'
+    resources:
+        ssh_connections=1
     shell:
         "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
 
@@ -113,6 +173,8 @@ rule download_tindaisy_raw_merged_vcf:
     """Download TinDaisy raw merged VCFs."""
     output: vcf='external_data/tindaisy_vcfs/{case}.raw_merged.vcf'
     params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_raw_merged_vcf[wildcards.case]
+    resources:
+        ssh_connections=1
     shell:
         "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
 
@@ -121,6 +183,8 @@ rule download_tindaisy_raw_merged_filterd_vcf:
     """Download TinDaisy raw merged and filtered VCFs."""
     output: vcf='external_data/tindaisy_vcfs/{case}.raw_merged_filtered.vcf'
     params: remote_vcf_pth=lambda wildcards: case_to_remote_tindaisy_raw_merged_filtered_vcf[wildcards.case]
+    resources:
+        ssh_connections=1
     shell:
         "rsync -a vw3.gsc.wustl.edu:{params.remote_vcf_pth} {output.vcf}"
 
@@ -160,7 +224,7 @@ rule extract_tindaisy_vcf_callers:
 rule vep_annotate_vcf:
     """Annotate VCF using VEP."""
     input: vcf='external_data/tindaisy_vcfs/{case}.{raw_type}.vcf'
-    output: vcf='processed_data/tindaisy_raw_annotated_vcfs/{case}.{raw_type}.vep_v90.vcf'
+    output: vcf=temp('processed_data/tindaisy_raw_annotated_vcfs/{case}.{raw_type}.vep_v90.vcf')
     params:
         vep_cache=VEP_CACHE_ROOT,
         buffer_size=5000
@@ -227,33 +291,34 @@ rule all_gdc_mafs:
     """All GDC raw VCFs and filtered MAFs."""
     input:
         raw_vcfs=rules.link_gdc_vcfs.output.raw_vcfs,
+        raw_annotated_mafs=expand(rules.convert_gdc_raw_annotated_vcf_to_maf.output['maf'],
+                                  sample=GDC_SAMPLES, caller=GDC_CALLERS),
         annotated_mafs=expand('processed_data/gdc_mafs/{sample}.{caller}.maf.gz',
                               sample=GDC_SAMPLES, caller=GDC_CALLERS)
 
 rule link_tindaisy_vcfs:
+    """All TinDiasy VCFs."""
     input:
         vcfs=expand('external_data/tindaisy_vcfs/{case}.vcf',
-                case=case_to_remote_tindaisy_vcf.keys()),
+                case=GDC_SAMPLES),
         raw_vcfs=expand('external_data/tindaisy_vcfs/{case}.{raw_type}.vcf',
-                case=case_to_remote_tindaisy_vcf.keys(),
+                case=GDC_SAMPLES,
                 raw_type=['raw_merged', 'raw_merged_filtered'])
 
 
 rule all_tindaisy_mafs:
     """All TinDaisy raw and filtered MAFs."""
     input:
-        maf=expand(rules.convert_tindaisy_vcf_to_maf.output['maf'],
-                   case=case_to_remote_tindaisy_vcf.keys()),
-        callers=expand(rules.extract_tindaisy_vcf_callers.output[0],
-                       case=case_to_remote_tindaisy_vcf.keys()),
+        maf=expand(rules.convert_tindaisy_vcf_to_maf.output['maf'], case=GDC_SAMPLES),
+        callers=expand(rules.extract_tindaisy_vcf_callers.output[0], case=GDC_SAMPLES),
         raw_mafs=expand(                                         \
             rules.convert_tindaisy_raw_vcf_to_maf.output['maf'], \
-            case=case_to_remote_tindaisy_vcf.keys(),             \
+            case=GDC_SAMPLES,                                    \
             raw_type=['raw_merged', 'raw_merged_filtered']       \
         ),                                                       \
         raw_maf_callers=expand(                                  \
             rules.extract_tindaisy_raw_vcf_callers.output[0],    \
-            case=case_to_remote_tindaisy_vcf.keys(),             \
+            case=GDC_SAMPLES,                                    \
             raw_type=['raw_merged', 'raw_merged_filtered']       \
         )
 
@@ -288,7 +353,7 @@ rule add_all_tindaisy_mafs:
     """Add all TinDiasy outputs."""
     input:
         mafs=expand(rules.add_tindaisy_one_maf.output['db_state'], \
-                    case=case_to_remote_tindaisy_vcf.keys())
+                    case=GDC_SAMPLES)
     output:
         db_state=touch('processed_data/db_state/1_added_td_all_cases')
 
@@ -311,7 +376,7 @@ rule add_all_tindaisy_raw_merged_mafs:
     """Add all TinDiasy raw merged outputs."""
     input:
         mafs=expand(rules.add_tindaisy_raw_merged_one_maf.output['db_state'], \
-                    case=case_to_remote_tindaisy_vcf.keys())
+                    case=GDC_SAMPLES)
     output:
         db_state=touch('processed_data/db_state/3_added_td_raw_merged_all_cases')
 
@@ -341,7 +406,7 @@ def find_tindaisy_maf_types(wildcards):
         )
     else:
         raise ValueError(f'Unknown maf type: {wildcards.maf_type}')
-    all_cases = sorted(case_to_remote_tindaisy_vcf.keys())
+    all_cases = sorted(GDC_SAMPLES)
     return {
         'maf': expand(maf_pth_fmt, case=all_cases),
         'callers': expand(caller_pth_fmt, case=all_cases)
