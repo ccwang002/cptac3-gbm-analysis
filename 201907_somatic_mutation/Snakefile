@@ -6,8 +6,7 @@ from textwrap import dedent
 GDC_VCF_ROOT = 'external_data/gdc_client_download'
 GDC_VCF_MANIFEST = 'gdc_all_gbm_discovery_vcf_manifest.tsv'
 GDC_CALLERS = ['varscan2', 'somaticsniper', 'mutect2', 'muse', 'pindel']
-TINDAISY_VCF_CUSTOM_HARMONIZED_PTH = '../201907_locate_data/tracked_results/washu_realigned_tindaisy_vcfs.tsv'
-TINDAISY_VCF_HARMONIZED_PTH = '../201907_locate_data/tracked_results/gdc_harmonized_tindaisy_vcsf.tsv'
+TINDAISY_VCF_HARMONIZED_PTH = '../201907_locate_data/tracked_results/gdc_harmonized_tindaisy_vcfs.tsv'
 
 VEP_CACHE_ROOT='/diskmnt/Datasets/VEP'
 
@@ -130,11 +129,6 @@ rule convert_gdc_raw_annotated_vcf_to_maf:
 
 # A map to remote TinDaisy VCFs
 case_to_remote_tindaisy_vcf = {}
-with open(TINDAISY_VCF_CUSTOM_HARMONIZED_PTH) as f:
-    reader = csv.DictReader(f, dialect='excel-tab')
-    for row in reader:
-        case_to_remote_tindaisy_vcf[row['# case']] = row['result_path']
-
 with open(TINDAISY_VCF_HARMONIZED_PTH) as f:
     reader = csv.DictReader(f, dialect='excel-tab')
     for row in reader:
