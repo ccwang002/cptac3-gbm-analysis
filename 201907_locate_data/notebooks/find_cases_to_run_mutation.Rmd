@@ -49,34 +49,3 @@ mgi_bam_tbl %>%
 cohort_seq_tbl.to_run_tindaisy %>% pull(case) %>%
     write_lines('../tracked_results/cases_to_run_somatic_mutation.list')
 ```
-
-
-
-## Find cases to run CNV
-```{r}
-cases_with_cnv <- read_lines(
-    '../genomic_downstream_availability/wustl_somatic_cnv_cases.list'
-)
-```
-
-```{r}
-cases_to_run_cnv <- wgs_custom_bam_tbl %>% pull(case) %>% unique() %>% setdiff(cases_with_cnv)
-cases_to_run_cnv
-```
-
-```{r}
-cohort_seq_tbl %>%
-    filter(
-        !case %in% union(cases_with_cnv, cases_to_run_cnv),
-        has_wgs_normal_raw & has_wgs_tumor_raw,
-        !is_gtex_normal
-    ) %>% 
-    select(case, in_discovery)
-```
-
-```{r}
-cases_to_run_cnv %>%
-    write_lines('../tracked_results/cases_to_run_somatic_cnv.list')
-```
-
-

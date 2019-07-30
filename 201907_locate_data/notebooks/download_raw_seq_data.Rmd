@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "Download raw sequencing data"
 output: html_notebook
 ---
 
@@ -31,6 +31,8 @@ bam_maps <- list.files('../../matt_catalog', '.*.BamMap.dat$', full.names = TRUE
     })
 ```
 
+
+
 ## Download the RNA-seq to MGI
 ```{r}
 cases_with_rna_processed <- read_lines('../genomic_downstream_availability/cases_with_rna_processed.list') %>%
@@ -51,25 +53,30 @@ cohort_seq_tbl %>%
 
 ## Download WGS to MGI
 ```{r}
-cases_with_gdc_wgs <- cohort_seq_tbl %>% filter(has_wgs_normal_gdc) %>% 
-    pull(case) %>% unique()
-
-washu_wgs_bam_map <- read_tsv(
-    '../../201904_locate_adhoc_data/tracked_results/MGI.GBM_custom_wgs.BamMap.dat',
-     col_types = cols(.default = col_character(), filesize = col_double())
-)
+cases_in_harm_batch3 = read_lines('../tracked_results/wxs_or_wgs_unharmonized_cases.list')
 ```
 
 ```{r}
-washu_wgs_bam_map
+cases_with_gdc_bam_cnv = read_lines('../genomic_downstream_availability/cases_with_gdc_harmonized_wgs_somatic_cnv.list')
+```
+
+Make sure all tumors in the discvoery cohort are covered:
+```{r}
+cohort_seq_tbl %>% 
+    filter(in_discovery, !is_gtex_normal) %>%
+    pull(case) %>%
+    setdiff(cases_with_gdc_bam_cnv) %>% 
+    setdiff(cases_in_harm_batch3)
 ```
 
 
 ```{r}
 wgs_to_download <- gbm_seq_data %>%
-    filter(experimental_strategy == 'WGS', data_format == 'BAM', reference == 'hg19', 
-           !case %in% cases_with_gdc_wgs) %>%
-    anti_join(washu_wgs_bam_map, by = c('case', 'sample_type'))
+    filter(experimental_strategy == 'WGS', data_format == 'BAM', reference == 'hg38', 
+           case %in% cases_in_harm_batch3)
+
+# all cases have paired tumor and normal WGS BAMs
+nrow(wgs_to_download) == length(cases_in_harm_batch3) * 2
 ```
 
 
@@ -94,9 +101,9 @@ wxs_to_download <- gbm_seq_data %>%
 
 ```{r}
 files_to_download <- bind_rows(
-    rna_to_download,
+    # rna_to_download,
     wgs_to_download,
-    wxs_to_download
+    # wxs_to_download
 )
 files_to_download %>% 
     group_by(experimental_strategy) %>%
@@ -105,6 +112,6 @@ files_to_download %>%
 
 ```{r}
 files_to_download %>%
-    write_tsv('../tracked_results/gdc_seq_files_to_download.tsv.gz')
+    write_tsv('~/Downloads/gdc_seq_files_to_download.tsv.gz')
 ```
 
