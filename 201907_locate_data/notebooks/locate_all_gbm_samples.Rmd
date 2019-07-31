@@ -115,8 +115,8 @@ cohort_seq_tbl <- cohort_seq_tbl %>%
         ),
         # miRNA 
         has_mirna_tumor_raw = case %in% get_seq_case_by_filter(
-            experimental_strategy == 'miRNA-Seq', data_format == 'FASTQ',
-            sample_type == 'tumor'
+            experimental_strategy == 'miRNA-Seq', data_format == 'BAM',
+            reference == 'hg38', sample_type == 'tumor'
         )
     )
 ```
