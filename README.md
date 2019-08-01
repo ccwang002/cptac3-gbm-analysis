@@ -45,6 +45,9 @@ Process batch 1-9 DNA methylation array data.
 ### `201907_somatic_mutation` on denali
 Collect TinDaisy and GDC somatic mutation calls and annoate the raw VCFs.
 
+### `201908_germline_variant` on denali
+Collect GermlineWrapper v1.1 germline variant calls.
+
 
 
 ## Ad-hoc cohort
