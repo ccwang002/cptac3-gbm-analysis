@@ -1,3 +1,4 @@
+import argparse
 import csv
 import gzip
 import itertools
@@ -9,11 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 def read_maf_content(maf_pth):
+    logger.info(f'... opening new MAF at {maf_pth}')
     maf_reader = MAF(maf_pth)
     yield from maf_reader
 
 
-def main(maf_pths, out_pth):
+def main(maf_folder, out_pth):
+    maf_pths = sorted(Path(maf_folder).glob('*.maf.gz'))
     logger.info(f'Combining {len(maf_pths):,d} MAFs.')
     # Read MAF header
     maf_reader = MAF(maf_pths[0])
@@ -34,21 +37,23 @@ def main(maf_pths, out_pth):
     logger.info('Complete')
 
 
-def setup_cli(snakemake):
-    # Setup logging to file
-    fh = logging.StreamHandler()
+def setup_cli():
+    # Setup console logging
+    console = logging.StreamHandler()
     all_loggers = logging.getLogger()
     all_loggers.setLevel(logging.INFO)
-    all_loggers.addHandler(fh)
+    all_loggers.addHandler(console)
     log_fmt = '[%(asctime)s][%(levelname)-7s] %(message)s'
     log_formatter = logging.Formatter(log_fmt, '%Y-%m-%d %H:%M:%S')
-    fh.setFormatter(log_formatter)
+    console.setFormatter(log_formatter)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('maf_folder', help="Path to folder contains all MAFs")
+    parser.add_argument('out_maf_gz', help="Path to output maf.gz")
+    return parser
 
 
 if __name__ == '__main__':
-    setup_cli(snakemake)                    # noqa
-    main(
-        snakemake.input['all_mafs'],        # noqa
-        snakemake.output[0],                # noqa
-    )
-
+    parser = setup_cli()
+    args = parser.parse_args()
+    main(args.maf_folder, args.out_maf_gz)

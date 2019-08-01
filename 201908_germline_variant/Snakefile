@@ -66,9 +66,9 @@ rule all_vep_vcfs:
     input: expand(rules.download_vep_vcf.output['vcf'], case=case_to_variant_pth_map.keys())
 
 
-rule combine_all_mafs:
-    """Combine all MAFs into one."""
-    output: 'processed_data/combined_mafs/germlinewrapper_all_cases.maf.gz'
-    input:
-        all_mafs=expand(rules.download_maf.output['maf'], case=case_to_variant_pth_map.keys())
-    script: 'scripts/combine_mafs.py'
+# rule combine_all_mafs:
+#     """Combine all MAFs into one."""
+#     output: 'processed_data/combined_mafs/germlinewrapper_all_cases.maf.gz'
+#     input:
+#         all_mafs=expand(rules.download_maf.output['maf'], case=case_to_variant_pth_map.keys())
+#     script: 'scripts/combine_mafs.py'
