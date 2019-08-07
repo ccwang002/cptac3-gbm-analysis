@@ -1,0 +1,89 @@
+from pathlib import Path
+
+SAMPLES = sorted(p.name for p in Path('external_data/bicseq2_cnv').iterdir() if p.is_dir())
+# We have 95 samples with WGS CNV
+assert len(SAMPLES) == 115
+
+
+rule copy_bicseq2_cnv_one_sample:
+    """Copy and rename the CNV output of one sample by BIC-seq2 pipeline."""
+    output:
+        gene_cnv='processed_data/bicseq2_cnv/gene/{sample}.tsv.gz',
+        seg_cnv='processed_data/bicseq2_cnv/segment/{sample}.tsv.gz'
+    input:
+        gene_cnv='external_data/bicseq2_cnv/{sample}/annotation/{sample}.gene_level.log2.seg',
+        seg_cnv='external_data/bicseq2_cnv/{sample}/segmentation/{sample}.cnv'
+    shell:
+        """
+        gzip -c -9 {input.gene_cnv} > {output.gene_cnv}
+        gzip -c -9 {input.seg_cnv} > {output.seg_cnv}
+        """
+
+
+rule copy_bicseq2_cnv_all_samples:
+    """Copy the BIC-seq2 CNV output of all samples."""
+    input:
+        all_genes=expand(rules.copy_bicseq2_cnv_one_sample.output['gene_cnv'], sample=SAMPLES),
+        all_segments=expand(rules.copy_bicseq2_cnv_one_sample.output['seg_cnv'], sample=SAMPLES)
+
+
+rule merge_all_segment_cnvs:
+    """Merge all segment CNVs into one GRangesList object."""
+    output: rds='processed_data/segment_cnv.rds'
+    input: seg_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_segments']
+    params:
+        seg_cnv_pths=lambda wildcards, input: [f'/repo/201905_somatic_wgs_cnv/{pth}' for pth in input['seg_cnvs']]
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            -e USERID=$(id -u) -e USER=$(id -u -n) \
+            -v $(dirname $PWD):/repo \
+            lbwang/rocker-genome \
+            Rscript /repo/201905_somatic_wgs_cnv/scripts/collect_all_seg_cnvs.R \
+                /repo/201905_somatic_wgs_cnv/{output} \
+                {params.seg_cnv_pths}
+        """
+
+
+rule merge_all_gene_cnvs:
+    """Merge all gene CNVs into one SummarizedExperiment object."""
+    output: rds='processed_data/gene_cnv.rds'
+    input: gene_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_genes']
+    params:
+        gene_cnv_pths=lambda wildcards, input: [f'/repo/201905_somatic_wgs_cnv/{pth}' for pth in input['gene_cnvs']]
+    shell:
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            -e USERID=$(id -u) -e USER=$(id -u -n) \
+            -v $(dirname $PWD):/repo \
+            lbwang/rocker-genome \
+            Rscript /repo/201905_somatic_wgs_cnv/scripts/collect_all_gene_cnvs.R \
+                /repo/201905_somatic_wgs_cnv/{output} \
+                {params.gene_cnv_pths}
+        """
+
+
+rule plot_seg_cnv_one_sample:
+    """Plot the CNV segments of all chromosomes of one sample."""
+    output:
+        fig='processed_data/seg_cnv_plot/{sample}.pdf'
+    input:
+        seg_cnv_rds=rules.merge_all_segment_cnvs.output['rds']
+    shell:
+        # Map the git repo to /repo inside Docker so it can access data from other projects
+        """
+        docker run -t --rm -u $(id -u):$(id -g) \
+            -e USERID=$(id -u) -e USER=$(id -u -n) \
+            -v $(dirname $PWD):/repo \
+            lbwang/rocker-genome \
+            Rscript /repo/201905_somatic_wgs_cnv/scripts/plot_seg_cnv.R \
+                {wildcards.sample} \
+                /repo/201905_somatic_wgs_cnv/{input} \
+                /repo/201905_somatic_wgs_cnv/{output} \
+                >/dev/null 2>&1
+        """
+
+
+rule plot_seg_cnv_all_samples:
+    """Plot the CNV segments of all samples."""
+    input: expand(rules.plot_seg_cnv_one_sample.output['fig'], sample=SAMPLES)

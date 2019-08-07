@@ -48,6 +48,9 @@ Collect TinDaisy and GDC somatic mutation calls and annoate the raw VCFs.
 ### `201908_germline_variant` on denali
 Collect GermlineWrapper v1.1 germline variant calls.
 
+### `201908_somatic_wgs_cnv` on katmai
+Collect the somatic CNV calls from WGS.
+
 
 
 ## Ad-hoc cohort
