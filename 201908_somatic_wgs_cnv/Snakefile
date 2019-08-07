@@ -1,8 +1,8 @@
 from pathlib import Path
 
 SAMPLES = sorted(p.name for p in Path('external_data/bicseq2_cnv').iterdir() if p.is_dir())
-# We have 95 samples with WGS CNV
-assert len(SAMPLES) == 115
+# We have 116 samples with WGS CNV
+assert len(SAMPLES) == 116
 
 
 rule copy_bicseq2_cnv_one_sample:
