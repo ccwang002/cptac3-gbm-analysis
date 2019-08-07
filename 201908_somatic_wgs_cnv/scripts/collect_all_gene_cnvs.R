@@ -22,7 +22,7 @@ message(str_interp('Read ${length(samples)} samples.'))
 # Read all gene CNV tables and merge into one
 gene_cnv_tbl <- samples %>%
     purrr:::map(function(case) {
-        pth = str_interp('/repo/201905_somatic_wgs_cnv/processed_data/bicseq2_cnv/gene/${case}.tsv.gz')
+        pth = str_interp('/repo/201908_somatic_wgs_cnv/processed_data/bicseq2_cnv/gene/${case}.tsv.gz')
         read_tsv(
             pth,
             col_names = c('symbol', 'chrom', 'start', 'end', case),
@@ -121,7 +121,7 @@ all_gene_cnv_se <- SummarizedExperiment(
         cnv_log2 = gene_cnv_mat
     ),
     metadata = list(
-        cohort = 'CPTAC3 GBM adhoc cohort (incomplete; 95 cases)',
+        cohort = 'CPTAC3 GBM adhoc cohort (2019.08)',
         description = 'Gene level somatic CNV (log2) based on whole genome sequencing',
         pipeline = 'BIC-seq2 pipeline at https://github.com/ding-lab/BICSEQ2',
         annotation = 'GENCODE v29 (Ensembl v94) protein coding only',

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+REPO_NAME = '201908_somatic_wgs_cnv'
 SAMPLES = sorted(p.name for p in Path('external_data/bicseq2_cnv').iterdir() if p.is_dir())
 # We have 116 samples with WGS CNV
 assert len(SAMPLES) == 116
@@ -32,15 +33,15 @@ rule merge_all_segment_cnvs:
     output: rds='processed_data/segment_cnv.rds'
     input: seg_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_segments']
     params:
-        seg_cnv_pths=lambda wildcards, input: [f'/repo/201905_somatic_wgs_cnv/{pth}' for pth in input['seg_cnvs']]
+        seg_cnv_pths=lambda wildcards, input: [f'/repo/{REPO_NAME}/{pth}' for pth in input['seg_cnvs']]
     shell:
         """
         docker run -t --rm -u $(id -u):$(id -g) \
             -e USERID=$(id -u) -e USER=$(id -u -n) \
             -v $(dirname $PWD):/repo \
             lbwang/rocker-genome \
-            Rscript /repo/201905_somatic_wgs_cnv/scripts/collect_all_seg_cnvs.R \
-                /repo/201905_somatic_wgs_cnv/{output} \
+            Rscript /repo/{REPO_NAME}/scripts/collect_all_seg_cnvs.R \
+                /repo/{REPO_NAME}/{output} \
                 {params.seg_cnv_pths}
         """
 
@@ -50,15 +51,15 @@ rule merge_all_gene_cnvs:
     output: rds='processed_data/gene_cnv.rds'
     input: gene_cnvs=rules.copy_bicseq2_cnv_all_samples.input['all_genes']
     params:
-        gene_cnv_pths=lambda wildcards, input: [f'/repo/201905_somatic_wgs_cnv/{pth}' for pth in input['gene_cnvs']]
+        gene_cnv_pths=lambda wildcards, input: [f'/repo/{REPO_NAME}/{pth}' for pth in input['gene_cnvs']]
     shell:
         """
         docker run -t --rm -u $(id -u):$(id -g) \
             -e USERID=$(id -u) -e USER=$(id -u -n) \
             -v $(dirname $PWD):/repo \
             lbwang/rocker-genome \
-            Rscript /repo/201905_somatic_wgs_cnv/scripts/collect_all_gene_cnvs.R \
-                /repo/201905_somatic_wgs_cnv/{output} \
+            Rscript /repo/{REPO_NAME}/scripts/collect_all_gene_cnvs.R \
+                /repo/{REPO_NAME}/{output} \
                 {params.gene_cnv_pths}
         """
 
@@ -76,10 +77,10 @@ rule plot_seg_cnv_one_sample:
             -e USERID=$(id -u) -e USER=$(id -u -n) \
             -v $(dirname $PWD):/repo \
             lbwang/rocker-genome \
-            Rscript /repo/201905_somatic_wgs_cnv/scripts/plot_seg_cnv.R \
+            Rscript /repo/{REPO_NAME}/scripts/plot_seg_cnv.R \
                 {wildcards.sample} \
-                /repo/201905_somatic_wgs_cnv/{input} \
-                /repo/201905_somatic_wgs_cnv/{output} \
+                /repo/{REPO_NAME}/{input} \
+                /repo/{REPO_NAME}/{output} \
                 >/dev/null 2>&1
         """
 
