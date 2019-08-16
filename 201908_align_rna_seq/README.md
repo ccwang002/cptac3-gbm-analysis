@@ -13,3 +13,9 @@ Align RNA-seq FASTQs to BAMs following GDC's command
 
 ## Pipeline execution
 
+    # Link all RNA-seq FASTQs
+    snakemake link_gdc_rna_fastqs
+
+    # Run STAR alignment
+    snakemake star_align_all_samples
+

@@ -11,9 +11,25 @@ GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
 STAR_INDEX_FOLDER = '/diskmnt/Datasets/Reference/GDC/star_genome_d1_vd1_gtfv22.rebuild'
 STAR_GTF = '/diskmnt/Datasets/Reference/GDC/gencode.v22.annotation.gtf'
 
-SAMPLES = [
+replacement_tumors = [
     f'{case}_tumor'
     for case in ['C3L-03387', 'C3L-03390', 'C3L-03400', 'C3L-03405']
+]
+qc_repeat_tumors = [
+    f'{case}_tumor'
+    for case in ['C3L-02707', 'C3N-01818', 'C3L-02504', 'C3L-01049', 'C3N-02181']
+]
+# Currently missing PT-Q2AG
+gtex_normals = [
+    f'{case}_tissue_normal'
+    for case in ['PT-NPJ7', 'PT-P44H', 'PT-QVJO', 'PT-R55F',
+                 'PT-RN5K', 'PT-RU72', 'PT-UTHO', 'PT-WVLH', 'PT-Y8DK']
+]
+
+SAMPLES = [
+    *replacement_tumors,
+    *qc_repeat_tumors,
+    *gtex_normals,
 ]
 
 
@@ -71,7 +87,8 @@ rule star_align:
         chimeric_sam=f'{OUTPUT_FOLDER}/star/{{sample}}/Chimeric.out.sam',
         chimeric_junction=f'{OUTPUT_FOLDER}/star/{{sample}}/Chimeric.out.junction',
         quant_tx_bam=f'{OUTPUT_FOLDER}/star/{{sample}}/Aligned.toTranscriptome.out.bam',
-        quant_gene_counts=f'{OUTPUT_FOLDER}/star/{{sample}}/ReadsPerGene.out.tab',
+        quant_gene_count_tab=f'{OUTPUT_FOLDER}/star/{{sample}}/ReadsPerGene.out.tab',
+        sj_count_tab=f'{OUTPUT_FOLDER}/star/{{sample}}/SJ.out.tab',
     input:
         r1_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R1'),
         r2_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R2')
@@ -80,7 +97,7 @@ rule star_align:
         star_gtf=STAR_GTF,
         out_folder=f'{OUTPUT_FOLDER}/star/{{sample}}/'
     log: 'logs/star/{sample}.log'
-    threads: 4
+    threads: 6
     shell:
         dedent(r'''\
             STAR \
@@ -120,5 +137,6 @@ rule star_align:
 
 
 rule star_align_all_samples:
+    """Align all RNA-seq samples."""
     input:
         all_unsorted_bams=expand(rules.star_align.output.unsorted_bam, sample=SAMPLES)
