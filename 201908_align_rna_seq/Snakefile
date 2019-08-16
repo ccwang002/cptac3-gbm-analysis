@@ -5,7 +5,7 @@ import string
 
 BAM_MAP_PTH = '../matt_catalog/katmai.BamMap.dat'
 LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN = 'external_data/CPTAC_RNA_fq/{sample}.{strand}.fastq.gz'
-
+OUTPUT_FOLDER = '/diskmnt/Projects/cptac_scratch_2/CPTAC3_GBM_custom_BAMs/rnaseq'
 # GDC References
 GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
 STAR_INDEX_FOLDER = '/diskmnt/Datasets/Reference/GDC/star_genome_d1_vd1_gtfv22.rebuild'
@@ -66,19 +66,19 @@ rule link_gdc_rna_fastqs:
 rule star_align:
     """STAR align one sample."""
     output:
-        unsorted_bam='processed_data/star/{sample}/Aligned.out.bam',
-        sorted_bam='processed_data/star/{sample}/Aligned.sortedByCoord.out.bam',
-        chimeric_sam='processed_data/star/{sample}/Chimeric.out.sam',
-        chimeric_junction='processed_data/star/{sample}/Chimeric.out.junction',
-        quant_tx_bam='processed_data/star/{sample}/Aligned.toTranscriptome.out.bam',
-        quant_gene_counts='processed_data/star/{sample}/ReadsPerGene.out.tab',
+        unsorted_bam=f'{OUTPUT_FOLDER}/star/{{sample}}/Aligned.out.bam',
+        sorted_bam=f'{OUTPUT_FOLDER}/star/{{sample}}/Aligned.sortedByCoord.out.bam',
+        chimeric_sam=f'{OUTPUT_FOLDER}/star/{{sample}}/Chimeric.out.sam',
+        chimeric_junction=f'{OUTPUT_FOLDER}/star/{{sample}}/Chimeric.out.junction',
+        quant_tx_bam=f'{OUTPUT_FOLDER}/star/{{sample}}/Aligned.toTranscriptome.out.bam',
+        quant_gene_counts=f'{OUTPUT_FOLDER}/star/{{sample}}/ReadsPerGene.out.tab',
     input:
         r1_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R1'),
         r2_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R2')
     params:
         star_ix=STAR_INDEX_FOLDER,
         star_gtf=STAR_GTF,
-        out_folder='processed_data/star/{sample}/'
+        out_folder=f'{OUTPUT_FOLDER}/star/{{sample}}/'
     log: 'logs/star/{sample}.log'
     threads: 4
     shell:
@@ -117,3 +117,8 @@ rule star_align:
             --twopassMode Basic \
             > {log}
         ''')
+
+
+rule star_align_all_samples:
+    input:
+        all_unsorted_bams=expand(rules.star_align.output.unsorted_bam, sample=SAMPLES)
