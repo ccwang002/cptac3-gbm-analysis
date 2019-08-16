@@ -11,4 +11,6 @@ CPTAC GBM counts files were filtered based on Mathangi's manifest of GDC harmoni
 
 
 ## Notebooks
-- `notebooks/collect_tcga_gbm_rnaseq.Rmd`: Summarize all TCGA GBM count matrics (FPKM, FPKM-UQ, HTSeq counts)
+- `notebooks/collect_tcga_gbm_rnaseq.Rmd`: Summarize all TCGA GBM count matrices (FPKM, FPKM-UQ, HTSeq counts)
+- `notebooks/collect_cptac_gbm_rnaseq.Rmd`: Summarize all CPTAC GBM count matrices and STAR outputs
+- `notebooks/parse_tcga_clinical_data.Rmd`: Parse TCGA clinical data

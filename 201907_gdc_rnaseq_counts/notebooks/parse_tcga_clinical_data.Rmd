@@ -1,0 +1,13 @@
+---
+title: "Parse TCGA clinical data"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+clinical_tbl = read_tsv('../tcga_gbm_gdc_manifest/clinical.cart.2019-07-05/clinical.tsv.gz')
+```
+
