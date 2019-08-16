@@ -51,6 +51,9 @@ Collect GermlineWrapper v1.1 germline variant calls.
 ### `201908_somatic_wgs_cnv` on katmai
 Collect the somatic CNV calls from WGS.
 
+### `201908_align_rna_seq` on katmai
+Align the remaining RNA-seq FASTQs by following GDC's pipeline
+
 
 
 ## Ad-hoc cohort

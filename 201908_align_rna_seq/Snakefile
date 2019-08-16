@@ -1,0 +1,119 @@
+import csv
+from textwrap import dedent
+from pathlib import Path
+import string
+
+BAM_MAP_PTH = '../matt_catalog/katmai.BamMap.dat'
+LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN = 'external_data/CPTAC_RNA_fq/{sample}.{strand}.fastq.gz'
+
+# GDC References
+GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+STAR_INDEX_FOLDER = '/diskmnt/Datasets/Reference/GDC/star_genome_d1_vd1_gtfv22.rebuild'
+STAR_GTF = '/diskmnt/Datasets/Reference/GDC/gencode.v22.annotation.gtf'
+
+SAMPLES = [
+    f'{case}_tumor'
+    for case in ['C3L-03387', 'C3L-03390', 'C3L-03400', 'C3L-03405']
+]
+
+
+class PartialFormatter(string.Formatter):
+    """A partial string formatter.
+
+    Example:
+
+        >>> fmt = PartialFormatter()
+        >>> fmt.format('Sale on {date} is {num_box}', date='2019-08-07')
+        'Sale on 2019-08-07 is {num_box}'
+
+    """
+    def get_value(self, key, args, kwargs):
+        try:
+            val = super().get_value(key, args, kwargs)
+        except (KeyError, IndexError):
+            val = f'{{{key}}}'
+        return val
+
+_partial_fmt = PartialFormatter()
+
+
+rule link_gdc_rna_fastqs:
+    """Link the GDC RNA-seq fastqs locally."""
+    input: local_map=BAM_MAP_PTH
+    output:
+        all_fqs=expand(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, sample=SAMPLES, strand=['R1', 'R2'])
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = f"{row['case']}_{row['sample_type']}"
+                if not (sample in SAMPLES and
+                        row['experimental_strategy'] == 'RNA-Seq' and
+                        row['data_format'] == 'FASTQ'):
+                    continue
+                full_sample_name = row['# sample_name']
+                # get the RNA strand, R1 or R2
+                strand = full_sample_name.rsplit('.', 2)[-2]
+                assert strand in ('R1', 'R2')
+                src_pth = Path(row['data_path'])
+                dst_pth = Path(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN
+                               .format(sample=sample, strand=strand))
+                dst_pth.symlink_to(src_pth)
+
+
+rule star_align:
+    """STAR align one sample."""
+    output:
+        unsorted_bam='processed_data/star/{sample}/Aligned.out.bam',
+        sorted_bam='processed_data/star/{sample}/Aligned.sortedByCoord.out.bam',
+        chimeric_sam='processed_data/star/{sample}/Chimeric.out.sam',
+        chimeric_junction='processed_data/star/{sample}/Chimeric.out.junction',
+        quant_tx_bam='processed_data/star/{sample}/Aligned.toTranscriptome.out.bam',
+        quant_gene_counts='processed_data/star/{sample}/ReadsPerGene.out.tab',
+    input:
+        r1_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R1'),
+        r2_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R2')
+    params:
+        star_ix=STAR_INDEX_FOLDER,
+        star_gtf=STAR_GTF,
+        out_folder='processed_data/star/{sample}/'
+    log: 'logs/star/{sample}.log'
+    threads: 4
+    shell:
+        dedent(r'''\
+            STAR \
+            --readFilesIn {input.r1_fq} {input.r2_fq} \
+            --alignIntronMax 1000000 \
+            --alignIntronMin 20 \
+            --alignMatesGapMax 1000000 \
+            --alignSJDBoverhangMin 1 \
+            --alignSJoverhangMin 8 \
+            --alignSoftClipAtReferenceEnds Yes \
+            --chimJunctionOverhangMin 15 \
+            --chimMainSegmentMultNmax 1 \
+            --chimOutType Junctions SeparateSAMold WithinBAM SoftClip \
+            --chimSegmentMin 15 \
+            --genomeDir {params.star_ix} \
+            --genomeLoad NoSharedMemory \
+            --limitBAMsortRAM 0 \
+            --limitSjdbInsertNsj 1200000 \
+            --outFileNamePrefix {params.out_folder} \
+            --outFilterIntronMotifs None \
+            --outFilterMatchNminOverLread 0.33 \
+            --outFilterMismatchNmax 999 \
+            --outFilterMismatchNoverLmax 0.1 \
+            --outFilterMultimapNmax 20 \
+            --outFilterScoreMinOverLread 0.33 \
+            --outFilterType BySJout \
+            --outSAMattributes NH HI AS nM NM ch \
+            --outSAMstrandField intronMotif \
+            --outSAMtype BAM Unsorted SortedByCoordinate \
+            --outSAMunmapped Within \
+            --quantMode TranscriptomeSAM GeneCounts \
+            --readFilesCommand zcat \
+            --runThreadN {threads} \
+            --twopassMode Basic \
+            > {log}
+        ''')
