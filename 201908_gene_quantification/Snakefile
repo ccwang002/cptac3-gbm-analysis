@@ -1,0 +1,221 @@
+import csv
+from collections import namedtuple
+from textwrap import dedent
+from pathlib import Path
+
+STAR_GTF = '/diskmnt/Datasets/Reference/GDC/gencode.v22.annotation.gtf'
+CASE_LIST_PTH = '../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list'
+GDC_BAM_MAP_PTH = '../matt_catalog/katmai.BamMap.dat'
+WASHU_BAM_MAP_PTH = '../201908_align_rna_seq/tracked_results/washu_rnaseq_sorted_bam_map.katmai.tsv'
+
+CASES_WITH_WASHU_BAM = [
+    # Replacement samples
+    *['C3L-03387', 'C3L-03390', 'C3L-03400', 'C3L-03405'],
+    # Samples for QC
+    *['C3L-02707', 'C3N-01818', 'C3L-02504', 'C3L-01049', 'C3N-02181'],
+    # GTEx normals (currently missing PT-Q2AG)
+    *['PT-NPJ7', 'PT-P44H', 'PT-QVJO', 'PT-R55F',
+      'PT-RN5K', 'PT-RU72', 'PT-UTHO', 'PT-WVLH', 'PT-Y8DK'],
+]
+SAMPLES_WITH_WASHU_BAM = [
+    (f'{case}_tissue_normal' if case.startswith('PT-') else f'{case}_tumor')
+    for case in CASES_WITH_WASHU_BAM
+]
+
+with open(CASE_LIST_PTH) as f:
+    all_gbm_cases = f.read().splitlines()
+CASES_WITH_GDC_BAM = [
+    case for case in all_gbm_cases
+    if not case.startswith('PT-') and not case in CASES_WITH_WASHU_BAM[:4]
+]
+SAMPLES_WITH_GDC_BAM = [
+    (f'{case}_tissue_normal' if case.startswith('PT-') else f'{case}_tumor')
+    for case in CASES_WITH_GDC_BAM
+]
+
+
+rule link_gdc_rna_bams:
+    """Link all available GDC RNA-seq BAMs."""
+    input: local_map=GDC_BAM_MAP_PTH
+    output:
+        all_bams=expand('external_data/gdc_bam/{sample}.bam', sample=SAMPLES_WITH_GDC_BAM),
+        all_bais=expand('external_data/gdc_bam/{sample}.bam.bai', sample=SAMPLES_WITH_GDC_BAM)
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = f"{row['case']}_{row['sample_type']}"
+                if not (sample in SAMPLES_WITH_GDC_BAM and
+                        row['experimental_strategy'] == 'RNA-Seq' and
+                        row['data_format'] == 'BAM' and
+                        row['reference'] == 'hg38' and
+                        row['data_path'].endswith('.rna_seq.genomic.gdc_realn.bam')):
+                    continue
+                # Link BAM
+                src_pth = Path(row['data_path'])
+                dst_pth = Path('external_data/gdc_bam/{sample}.bam'
+                               .format(sample=sample))
+                dst_pth.symlink_to(src_pth)
+                # Link BAI
+                src_pth = Path(row['data_path'] + '.bai')
+                dst_pth = Path('external_data/gdc_bam/{sample}.bam.bai'
+                               .format(sample=sample))
+                dst_pth.symlink_to(src_pth)
+
+
+rule link_washu_rna_bams:
+    """Link all available WashU RNA-seq BAMs."""
+    input: local_map=WASHU_BAM_MAP_PTH
+    output:
+        all_bams=expand('external_data/washu_bam/{sample}.bam', sample=SAMPLES_WITH_WASHU_BAM),
+        all_bais=expand('external_data/washu_bam/{sample}.bam.bai', sample=SAMPLES_WITH_WASHU_BAM)
+    run:
+        # Create a UUID to local file path map
+        uuid_to_local_file_pth = {}
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = f"{row['case']}_{row['sample_type']}"
+                if not (sample in SAMPLES_WITH_WASHU_BAM and
+                        row['experimental_strategy'] == 'RNA-Seq' and
+                        row['data_format'] == 'BAM' and
+                        row['reference'] == 'hg38'):
+                    continue
+                # Link BAM
+                src_pth = Path(row['data_path'])
+                dst_pth = Path(f'external_data/washu_bam/{sample}.bam')
+                dst_pth.symlink_to(src_pth)
+                # Link BAI
+                src_pth = Path(row['data_path'] + '.bai')
+                dst_pth = Path(f'external_data/washu_bam/{sample}.bam.bai')
+                dst_pth.symlink_to(src_pth)
+
+
+# Stranded readcount {{{
+rule htseq_stranded_readcount:
+    """Readcount by HTSeq (stranded)."""
+    output: count_tsv='processed_data/htseq_stranded_readcount/{bam_src}/{sample}.tsv.gz'
+    input: bam='external_data/{bam_src}/{sample}.bam'
+    log: 'logs/htseq_stranded/{bam_src}/{sample}.log'
+    params:
+        gtf=STAR_GTF
+    resources:
+        io_heavy=1
+    shell:
+        dedent(r'''\
+        htseq-count \
+            -r pos \
+            -f bam \
+            -a 10 \
+            -s reverse \
+            -t exon \
+            -i gene_id \
+            -m intersection-nonempty \
+            --nonunique=none \
+            --max-reads-in-buffer=30000000 \
+            --additional-attr=gene_name \
+            {input.bam} {params.gtf} \
+            2> {log} \
+            | gzip -c -9 > {output.count_tsv}
+        ''')
+
+
+rule featurecounts_stranded_readcount:
+    """Readcount by featureCounts (stranded)."""
+    output: count_tsv='processed_data/featurecounts_stranded_readcount/{bam_src}/{sample}.tsv.gz'
+    input: bam='external_data/{bam_src}/{sample}.bam'
+    log: 'logs/featurecounts_stranded/{bam_src}/{sample}.log'
+    params:
+        gtf=STAR_GTF
+    resources:
+        io_heavy=1
+    threads: 4
+    shell:
+        'featureCounts '
+        '-g gene_id '  # feature id (-i in htseq)
+        '-t exon ' # feature type (-t in htseq)
+        '-T {threads} '
+        '-Q 10 ' # htseq set this minimal mapping quality by default
+        '-s 2 ' # reversely stranded
+        '-a {params.gtf} '
+        '-o {output.count_tsv} {input.bam} 2> {log}'
+
+# }}}
+
+
+# Unstranded readcount {{{
+rule htseq_unstranded_readcount:
+    """Readcount by HTSeq (unstranded)."""
+    output: count_tsv='processed_data/htseq_unstranded_readcount/{bam_src}/{sample}.tsv.gz'
+    input: bam='external_data/{bam_src}/{sample}.bam'
+    log: 'logs/htseq_unstranded/{bam_src}/{sample}.log'
+    params:
+        gtf=STAR_GTF
+    resources:
+        io_heavy=1
+    shell:
+        dedent(r'''\
+        htseq-count \
+            -r pos \
+            -f bam \
+            -a 10 \
+            -s no \
+            -t exon \
+            -i gene_id \
+            -m intersection-nonempty \
+            --nonunique=none \
+            --max-reads-in-buffer=30000000 \
+            --additional-attr=gene_name \
+            {input.bam} {params.gtf} \
+            2> {log} \
+            | gzip -c -9 > {output.count_tsv}
+        ''')
+
+
+rule featurecounts_unstranded_readcount:
+    """Readcount by featureCounts (unstranded)."""
+    output: count_tsv='processed_data/featurecounts_unstranded_readcount/{bam_src}/{sample}.tsv.gz'
+    input: bam='external_data/{bam_src}/{sample}.bam'
+    log: 'logs/featurecounts_unstranded/{bam_src}/{sample}.log'
+    params:
+        gtf=STAR_GTF
+    resources:
+        io_heavy=1
+    threads: 4
+    shell:
+        'featureCounts '
+        '-g gene_id '  # feature id (-i in htseq)
+        '-t exon ' # feature type (-t in htseq)
+        '-T {threads} '
+        '-Q 10 ' # htseq set this minimal mapping quality by default
+        '-s 0 ' # unstranded
+        '-a {params.gtf} '
+        '-o {output.count_tsv} {input.bam} 2> {log}'
+
+# }}}
+
+
+rule all_htseq_stranded_readcount:
+    input:
+        gdc_counts=expand(rules.htseq_stranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.htseq_stranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+
+
+rule all_featurecounts_stranded_readcount:
+    input:
+        gdc_counts=expand(rules.featurecounts_stranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.featurecounts_stranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+
+
+rule all_htseq_unstranded_readcount:
+    input:
+        gdc_counts=expand(rules.htseq_unstranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.htseq_unstranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+
+
+rule all_featurecounts_unstranded_readcount:
+    input:
+        gdc_counts=expand(rules.featurecounts_unstranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.featurecounts_unstranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
