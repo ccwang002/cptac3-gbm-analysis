@@ -54,6 +54,9 @@ Collect the somatic CNV calls from WGS.
 ### `201908_align_rna_seq` on katmai
 Align the remaining RNA-seq FASTQs by following GDC's pipeline
 
+### `201908_gene_quantification` on katmai
+Explore different RNA gene quantification methods (HTSeq and featureCounts).
+
 
 
 ## Ad-hoc cohort

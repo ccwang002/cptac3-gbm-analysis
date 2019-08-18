@@ -20,4 +20,7 @@ Align RNA-seq FASTQs to BAMs following GDC's command
 
     # Run STAR alignment
     snakemake star_align_all_samples
+    snakemake -j 32 --resources io_heavy=4 -- star_align_all_samples
 
+    # Generate BAM manifests under tracked_results
+    snakemake gen_washu_bam_map
