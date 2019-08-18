@@ -112,6 +112,7 @@ rule star_align:
             --chimJunctionOverhangMin 15 \
             --chimMainSegmentMultNmax 1 \
             --chimOutType Junctions SeparateSAMold WithinBAM SoftClip \
+            --chimOutJunctionFormat 1 \
             --chimSegmentMin 15 \
             --genomeDir {params.star_ix} \
             --genomeLoad NoSharedMemory \
