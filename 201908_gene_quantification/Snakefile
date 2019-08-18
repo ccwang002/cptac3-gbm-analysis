@@ -124,7 +124,7 @@ rule htseq_stranded_readcount:
 
 rule featurecounts_stranded_readcount:
     """Readcount by featureCounts (stranded)."""
-    output: count_tsv='processed_data/featurecounts_stranded_readcount/{bam_src}/{sample}.tsv.gz'
+    output: count_tsv=temp('processed_data/featurecounts_stranded_readcount/{bam_src}/{sample}.tsv')
     input: bam='external_data/{bam_src}/{sample}.bam'
     log: 'logs/featurecounts_stranded/{bam_src}/{sample}.log'
     params:
@@ -176,7 +176,7 @@ rule htseq_unstranded_readcount:
 
 rule featurecounts_unstranded_readcount:
     """Readcount by featureCounts (unstranded)."""
-    output: count_tsv='processed_data/featurecounts_unstranded_readcount/{bam_src}/{sample}.tsv.gz'
+    output: count_tsv=temp('processed_data/featurecounts_unstranded_readcount/{bam_src}/{sample}.tsv')
     input: bam='external_data/{bam_src}/{sample}.bam'
     log: 'logs/featurecounts_unstranded/{bam_src}/{sample}.log'
     params:
@@ -197,25 +197,40 @@ rule featurecounts_unstranded_readcount:
 # }}}
 
 
+rule compress_featurecounts:
+    """Compress featureCounts output."""
+    output: 'processed_data/featurecounts_{strandness}_readcount/{name}.tsv.gz'
+    input: 'processed_data/featurecounts_{strandness}_readcount/{name}.tsv'
+    shell: 'gzip -9 -c {input} > {output}'
+
+
 rule all_htseq_stranded_readcount:
     input:
-        gdc_counts=expand(rules.htseq_stranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
-        washu_counts=expand(rules.htseq_stranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+        gdc_counts=expand(rules.htseq_stranded_readcount.output.count_tsv, \
+                          bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.htseq_stranded_readcount.output.count_tsv, \
+                            bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
 
 
 rule all_featurecounts_stranded_readcount:
     input:
-        gdc_counts=expand(rules.featurecounts_stranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
-        washu_counts=expand(rules.featurecounts_stranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+        gdc_counts=expand(rules.featurecounts_stranded_readcount.output.count_tsv + '.gz', \
+                          bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.featurecounts_stranded_readcount.output.count_tsv + '.gz', \
+                            bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
 
 
 rule all_htseq_unstranded_readcount:
     input:
-        gdc_counts=expand(rules.htseq_unstranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
-        washu_counts=expand(rules.htseq_unstranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+        gdc_counts=expand(rules.htseq_unstranded_readcount.output.count_tsv, \
+                          bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.htseq_unstranded_readcount.output.count_tsv, \
+                            bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
 
 
 rule all_featurecounts_unstranded_readcount:
     input:
-        gdc_counts=expand(rules.featurecounts_unstranded_readcount.output.count_tsv, bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
-        washu_counts=expand(rules.featurecounts_unstranded_readcount.output.count_tsv, bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
+        gdc_counts=expand(rules.featurecounts_unstranded_readcount.output.count_tsv + '.gz', \
+                          bam_src='gdc_bam', sample=SAMPLES_WITH_GDC_BAM),
+        washu_counts=expand(rules.featurecounts_unstranded_readcount.output.count_tsv + '.gz', \
+                            bam_src='washu_bam', sample=SAMPLES_WITH_WASHU_BAM),
