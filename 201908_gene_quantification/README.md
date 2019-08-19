@@ -15,3 +15,7 @@ Use `gbm_gdc_rna` environment from `201908_align_rna_seq` project.
     snakemake -j40 --resources io_heavy=10 -- \
         all_featurecounts_stranded_readcount all_htseq_stranded_readcount \
         all_featurecounts_unstranded_readcount all_htseq_unstranded_readcount
+
+
+## Notebooks (run locally)
+

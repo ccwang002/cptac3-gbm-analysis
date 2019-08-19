@@ -1,0 +1,159 @@
+---
+title: "Collect readcounts"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(GenomicFeatures)
+library(SummarizedExperiment)
+library(tidyverse)
+```
+
+```{r}
+GDC_SEQINFO_PTH = '../../annotations/seqinfo_GRCh38.d1.vd1.rds'
+GDC_GENE_ANNOTATION_PTH = '../../annotations/gencode.gene.info.v22.tsv'
+```
+
+Find the files
+```{r}
+count_files_tbl = tibble(
+    file_path = list.files('../processed_data', pattern = '.tsv.gz$', full.names = TRUE, recursive = TRUE)
+) %>%
+    extract(
+        file_path, c('method', 'strandness', 'bam_source', 'case', 'sample_type'),
+        regex = "processed_data/(featurecounts|htseq)_((?:un)?stranded)_readcount/(gdc|washu)_bam/([^_]+)_(\\w+).tsv.gz",
+        remove = FALSE
+    ) %>%
+    select(method, strandness, bam_source, case, sample_type, everything()) %>%
+    arrange(method, strandness, case, bam_source)
+```
+
+```{r}
+count_files_tbl %>% count(method, strandness, bam_source)
+```
+
+
+## Construct gene annotation details
+```{r}
+gdc_seqinfo <- readRDS(GDC_SEQINFO_PTH)
+gdc_gene_annotation_gr <- read_tsv(GDC_GENE_ANNOTATION_PTH) %>%
+    column_to_rownames('gene_id') %>%
+    makeGRangesFromDataFrame(
+        seqinfo = gdc_seqinfo,
+        keep.extra.columns = TRUE
+    )
+```
+
+
+## Collect HTSeq and featureCounts
+```{r}
+read_htseq_count <- function(pth) {
+    read_tsv(
+        pth, 
+        col_names = c('gene_id', 'symbol', 'read_count'),
+        cols(
+            gene_id = col_character(),
+            symbol = col_character(),
+            read_count = col_double()
+        )
+    ) %>%
+        # Remove HTSeq special columns
+        filter(!startsWith(gene_id, '__'))
+}
+```
+
+```{r}
+read_featurecounts_count <- function(pth) {
+    read_tsv(
+        pth, 
+        col_names = c('gene_id', 'chrom', 'start', 'end', 'strand', 'length', 'read_count'),
+        skip = 2,
+        col_types = cols(
+            gene_id = col_character(),
+            chrom = col_character(),
+            start = col_character(),
+            end = col_character(),
+            strand = col_character(),
+            length = col_double(),
+            read_count = col_double()
+        )
+    ) %>%
+        select(gene_id, read_count)
+}
+```
+
+```{r}
+collect_as_summarized_experiment = function(count_files_of_same_type, method, strandness, bam_source) {
+    # Define the readcount matrix reader function
+    if (method == 'htseq') {
+        read_fun = read_htseq_count   
+    } else if (method == 'featurecounts') {
+        read_fun = read_featurecounts_count
+    } else {
+        stop(str_interp("Got unknown method ${method}"))
+    }
+    
+    # Read all the readcount tibbles
+    progress_bar = progress_estimated(nrow(count_files_of_same_type))
+    count_tbl_list = count_files_of_same_type$file_path %>%
+        set_names(count_files_of_same_type$case) %>%
+        map(function(pth) {
+            count_tbl = read_fun(pth)
+            progress_bar$tick()$print()
+            count_tbl
+        })
+    
+    # Combine the tibbles into one matrix
+    count_mat = count_tbl_list %>%
+        map(~ .x$read_count) %>%
+        bind_cols() %>%
+        as.matrix()
+    
+    # Make sure all the tibbles have the same gene_id order
+    stopifnot(every(count_tbl_list, ~ identical(.x$gene_id, count_tbl_list[[1]]$gene_id)))
+    
+    # Use the first tibble gene_id order as the rownames
+    rownames(count_mat) = count_tbl_list[[1]]$gene_id
+    reordered_count_mat = count_mat[names(gdc_gene_annotation_gr), ]
+    
+    se = SummarizedExperiment(
+        rowRanges = gdc_gene_annotation_gr,
+        assays = list(
+            count = reordered_count_mat
+        ),
+        metadata = list(
+            pipeline = list(
+                method = method,
+                strandness = strandness,
+                bam_source = bam_source
+            )
+        )
+    )
+    se
+}
+```
+
+```{r}
+OUT_FOLDER = '../processed_data/readcount_summarizedexperiment_objects'
+dir.create(OUT_FOLDER, showWarnings = FALSE)
+all_count_types = count_files_tbl %>% distinct(method, strandness, bam_source)
+
+all_count_types %>%
+    pwalk(
+        function(method, strandness, bam_source) {
+            count_files_of_same_type = count_files_tbl %>%
+                filter(method == !!method, strandness == !!strandness, bam_source == !!bam_source)
+            message(str_c(
+                str_interp('Processing readcount of ${method} (${strandness}) from ${bam_source} '),
+                str_interp('(n = ${nrow(count_files_of_same_type)})... ')))
+            
+            se = collect_as_summarized_experiment(count_files_of_same_type, method, strandness, bam_source)
+            saveRDS(
+                se, file.path(OUT_FOLDER, 
+                              str_interp('readcount_summarizedexperiment.${method}_${strandness}.${bam_source}.rds'))
+            )   
+        }
+    )
+```
+
+
