@@ -119,7 +119,7 @@ collect_as_summarized_experiment = function(count_files_of_same_type, method, st
     se = SummarizedExperiment(
         rowRanges = gdc_gene_annotation_gr,
         assays = list(
-            count = reordered_count_mat
+            readcount = reordered_count_mat
         ),
         metadata = list(
             pipeline = list(
@@ -130,6 +130,52 @@ collect_as_summarized_experiment = function(count_files_of_same_type, method, st
         )
     )
     se
+}
+```
+
+```{r}
+readcount_to_fpkm <- function(se) {
+    # FPKM conversion formula
+    # Ref: <https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/Expression_mRNA_Pipeline/#fpkm>
+    rc_per_gene = assay(se, 'readcount')
+    row_data = rowData(se)
+    gene_length = row_data$exon_length
+    protein_coding_genes = row_data %>%
+        subset(gene_type == 'protein_coding') %>%
+        rownames()
+    rc_total_protein_coding = colSums(rc_per_gene[protein_coding_genes, ])
+    
+    # Note that the transpose t(.) is necessary 
+    # to get the column-wise multiplication
+    fpkm = exp(t(
+        t(log(rc_per_gene) + log(1e9) - log(gene_length)) 
+        - log(rc_total_protein_coding)
+    ))
+    fpkm
+}
+
+readcount_to_fpkm_uq <- function(se) {
+    # FPKM-UQ conversion formula
+    # Ref: <https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/Expression_mRNA_Pipeline/#upper-quartile-fpkm>
+    rc_per_gene = assay(se, 'readcount')
+    row_data = rowData(se)
+    gene_length = row_data$exon_length
+    protein_coding_genes = row_data %>%
+        subset(gene_type == 'protein_coding') %>%
+        rownames()
+    rc_quantile_75th = apply(
+        rc_per_gene[protein_coding_genes, ], 
+        2, 
+        quantile, probs=0.75
+    )
+
+    # Note that the transpose t(.) is necessary 
+    # to get the column-wise multiplication
+    fpkm_uq = exp(t(
+        t(log(rc_per_gene) + log(1e9) - log(gene_length)) 
+        - log(rc_quantile_75th)
+    ))
+    fpkm_uq
 }
 ```
 
@@ -146,8 +192,12 @@ all_count_types %>%
             message(str_c(
                 str_interp('Processing readcount of ${method} (${strandness}) from ${bam_source} '),
                 str_interp('(n = ${nrow(count_files_of_same_type)})... ')))
-            
+            # Add assay read_count
             se = collect_as_summarized_experiment(count_files_of_same_type, method, strandness, bam_source)
+            # Add assay fpkm
+            assay(se, 'fpkm') <- readcount_to_fpkm(se)
+            # Add assay fpkm_uq
+            assay(se, 'fpkm_uq') <- readcount_to_fpkm_uq(se)
             saveRDS(
                 se, file.path(OUT_FOLDER, 
                               str_interp('readcount_summarizedexperiment.${method}_${strandness}.${bam_source}.rds'))
