@@ -140,6 +140,8 @@ rule featurecounts_stranded_readcount:
         '-t exon ' # feature type (-t in htseq)
         '-T {threads} '
         '-Q 10 ' # htseq set this minimal mapping quality by default
+        '-p '  # pair-end reads are considered one fragment; default HTSeq behavior
+        '-B '  # both reads of a read pair need to be mapped
         '-s 2 ' # reversely stranded
         '-a {params.gtf} '
         '-o {output.count_tsv} {input.bam} 2> {log}'
@@ -192,6 +194,8 @@ rule featurecounts_unstranded_readcount:
         '-t exon ' # feature type (-t in htseq)
         '-T {threads} '
         '-Q 10 ' # htseq set this minimal mapping quality by default
+        '-p '  # pair-end reads are considered one fragment; default HTSeq behavior
+        '-B '  # both reads of a read pair need to be mapped
         '-s 0 ' # unstranded
         '-a {params.gtf} '
         '-o {output.count_tsv} {input.bam} 2> {log}'
