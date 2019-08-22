@@ -10,7 +10,8 @@ Align RNA-seq FASTQs to BAMs following GDC's command
         samtools=1.9 htslib=1.9 \
         star=2.6.1a \
         htseq=0.11.2 \
-        subread=1.6.4
+        subread=1.6.4 \
+        rsem=1.3.2
 
 
 ## Pipeline execution
