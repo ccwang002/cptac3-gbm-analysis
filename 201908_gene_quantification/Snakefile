@@ -133,7 +133,7 @@ rule featurecounts_stranded_readcount:
         gtf=STAR_GTF
     resources:
         io_heavy=1
-    threads: 4
+    threads: 8
     shell:
         'featureCounts '
         '-g gene_id '  # feature id (-i in htseq)
@@ -187,7 +187,7 @@ rule featurecounts_unstranded_readcount:
         gtf=STAR_GTF
     resources:
         io_heavy=1
-    threads: 4
+    threads: 8
     shell:
         'featureCounts '
         '-g gene_id '  # feature id (-i in htseq)
