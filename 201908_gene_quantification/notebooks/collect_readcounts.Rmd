@@ -24,6 +24,7 @@ count_files_tbl = tibble(
         regex = "processed_data/(featurecounts|htseq)_((?:un)?stranded)_readcount/(gdc|washu)_bam/([^_]+)_(\\w+).tsv.gz",
         remove = FALSE
     ) %>%
+    filter(!is.na(method)) %>%
     select(method, strandness, bam_source, case, sample_type, everything()) %>%
     arrange(method, strandness, case, bam_source)
 ```
