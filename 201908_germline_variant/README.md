@@ -9,9 +9,11 @@ Follows 201907_somatic_mutation's setup
 ## Pipeline execution
 
     # Download VCFs and MAFs
-    snakemake -j8 --resources ssh_connections=8 -- all_mafs all_vep_vcfs
+    mkdir -p external_data/germlinewrapper/vep_vcf
+    rsync -a --info=progress2 \
+        vw5.gsc.wustl.edu:'/gscmnt/gc2508/dinglab/nvterekhanova/cptac3/germline_calling/prepare_files/Scripts/fernanda/VEP-annotation/out/{57_GBMs,erik_gbm_hg38}/*/*.vep95.vcf' \
+        external_data/germlinewrapper/vep_vcf/
+    parallel --bar -j8 'bgzip -l9 {}' ::: external_data/germlinewrapper/vep_vcf/*.vep95.vcf
 
-    # Combine all MAFs
-    # Use pypy to speed up the process
-    set -x PATH /diskmnt/Projects/Users/lwang/tools/pypy3.6-7.1.1-beta-linux_x86_64-portable/bin $PATH
-    pypy3 scripts/combine_mafs.py external_data/germlinewrapper/maf processed_data/combined_mafs/germlinewrapper_all_cases.maf.gz
+    # Convert VCF to MAF
+    snakemake -j 10 all_vcfs all_mafs

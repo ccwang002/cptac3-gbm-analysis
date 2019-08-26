@@ -3,72 +3,47 @@ import gzip
 from pathlib import Path
 from textwrap import dedent
 
-GDC_BAM_VARIANT_MAP_PTH = 'manifests/erik_germlinewrapper_v1.1_maf_pth.gdc_bams.tsv.gz'
-WASHU_BAM_VARIANT_MAP_PTH = 'manifests/erik_germlinewrapper_v1.1_maf_pth.washu_bams.tsv.gz'
-MGI_HOST = 'vw3.gsc.wustl.edu'
+CASE_LIST_PTH = '../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list'
 
-def read_map(pth):
-    with gzip.open(pth, 'rt') as f:
-        reader = csv.DictReader(f, dialect='excel-tab')
-        return {
-            row['case']: {
-                'maf_pth': row['maf_pth'],
-                'vep_vcf_pth': row['vep_vcf_pth'],
-            }
-            for row in reader
-        }
-
-case_to_variant_pth_map = {
-    **read_map(GDC_BAM_VARIANT_MAP_PTH),
-    **read_map(WASHU_BAM_VARIANT_MAP_PTH),
-}
+with open(CASE_LIST_PTH) as f:
+    CASES = [case for case in f.read().splitlines() if case.startswith('C')]
+    assert len(CASES) == 100
 
 
-rule download_maf:
-    """Download one germlinewrapper MAF."""
+rule move_vcf:
+    input: 'external_data/germlinewrapper/vep_vcf/{case}.vep95.vcf.gz'
+    output: 'processed_data/germlinewrapper_vcf/{case}.vep95.vcf.gz'
+    shell: 'mv {input} {output}'
+
+
+rule convert_vcf_to_maf:
+    """Convert annotated VCF to MAF."""
+    input: 'processed_data/germlinewrapper_vcf/{case}.vep95.vcf.gz'
     output:
-        maf='external_data/germlinewrapper/maf/{case}.maf.gz',
-        uncompressed_maf=temp('external_data/germlinewrapper/maf/{case}.maf')
+        maf='processed_data/germlinewrapper_maf/{case}.maf.gz',
+        uncompress_maf=temp('processed_data/germlinewrapper_maf/{case}.maf'),
+        uncompress_vcf=temp('processed_data/germlinewrapper_vcf/{case}.vcf'),
     params:
-        remote_maf_pth=lambda wildcards: case_to_variant_pth_map[wildcards.case]['maf_pth'],
-    resources:
-        ssh_connections=1
+        # The vcf2maf here is a hacked script that removed the ability to launch
+        # VEP and validate the reference genome (and hence faster)
+        vcf2maf='scripts/vcf2maf.v1.6.16.no_vep_no_ref.pl',
     shell:
         dedent(r'''
-        rsync -a {MGI_HOST}:{params.remote_maf_pth} {output.uncompressed_maf}
-        gzip -9 -c {output.uncompressed_maf} > {output.maf}
+        gzip -c -d {input} > {output.uncompress_vcf}
+        perl {params.vcf2maf} \
+            --input-vcf {output.uncompress_vcf} --output-maf {output.uncompress_maf} \
+            --tumor-id {wildcards.case}_T --normal-id {wildcards.case}_N \
+            --vcf-normal-id {wildcards.case}.N \
+            --filter-vcf 0 --ncbi-build GRCh38 >/dev/null 2>&1
+        gzip -c -9 {output.uncompress_maf} > {output.maf}
         ''')
 
 
-rule download_vep_vcf:
-    """Download one germlinewrapper VEP annotated VCF."""
-    output:
-        vcf='external_data/germlinewrapper/vep_vcf/{case}.vcf.gz',
-        uncompressed_vcf=temp('external_data/germlinewrapper/vep_vcf/{case}.vcf')
-    params:
-        remote_vcf_pth=lambda wildcards: case_to_variant_pth_map[wildcards.case]['vep_vcf_pth'],
-    resources:
-        ssh_connections=1
-    shell:
-        dedent(r'''
-        rsync -a {MGI_HOST}:{params.remote_vcf_pth} {output.uncompressed_vcf}
-        bgzip -l9 -c {output.uncompressed_vcf} > {output.vcf}
-        ''')
+rule all_vcfs:
+    """All germlinewrapper final VCFs."""
+    input: expand(rules.move_vcf.output[0], case=CASES)
 
 
 rule all_mafs:
     """All germlinewrapper final MAFs."""
-    input: expand(rules.download_maf.output['maf'], case=case_to_variant_pth_map.keys())
-
-
-rule all_vep_vcfs:
-    """All germlinewrapper VEP annotated VCFs."""
-    input: expand(rules.download_vep_vcf.output['vcf'], case=case_to_variant_pth_map.keys())
-
-
-# rule combine_all_mafs:
-#     """Combine all MAFs into one."""
-#     output: 'processed_data/combined_mafs/germlinewrapper_all_cases.maf.gz'
-#     input:
-#         all_mafs=expand(rules.download_maf.output['maf'], case=case_to_variant_pth_map.keys())
-#     script: 'scripts/combine_mafs.py'
+    input: expand(rules.convert_vcf_to_maf.output['maf'], case=CASES)
