@@ -57,6 +57,9 @@ Align the remaining RNA-seq FASTQs by following GDC's pipeline
 ### `201908_gene_quantification` on katmai and locally
 Explore different RNA gene quantification methods (HTSeq and featureCounts).
 
+### `201909_extract_tcga_mc3_mut` on denali
+Extract TCGA GBM somatic mutation from TCGA MC3 (hg38 lifted over) mutation calls.
+
 
 
 ## Ad-hoc cohort
