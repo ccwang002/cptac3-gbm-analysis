@@ -1,0 +1,113 @@
+import csv
+from textwrap import dedent
+from pathlib import Path
+import string
+
+OUTPUT_FOLDER = '/diskmnt/Projects/cptac_scratch_4/CPTAC3_GBM/201909_sv'
+CASE_LIST_PTH = '../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list'
+BAM_MAP_PTH = '../matt_catalog/katmai.BamMap.dat'
+GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+LOCALLY_LINKED_WGS_BAM_PATTERN = 'external_data/gdc_gbm_bam/{case}_{sample_type}.bam'
+
+
+# Define all samples
+# C3L-01834 doesn't have paired WGS; ignore GTEx normals
+CASES = [c for c in open(CASE_LIST_PTH).read().splitlines()
+         if c.startswith('C3') and c != 'C3L-01834']
+SAMPLE_TYPES = ['tumor', 'blood_normal']
+SAMPLES = [f'{c}_{s}' for s in SAMPLE_TYPES for c in CASES]
+
+
+# Implement a partial string formatter
+# {{{
+class PartialFormatter(string.Formatter):
+    """A partial string formatter.
+
+    Example:
+
+        >>> fmt = PartialFormatter()
+        >>> fmt.format('Sale on {date} is {num_box}', date='2019-08-07')
+        'Sale on 2019-08-07 is {num_box}'
+
+    """
+    def get_value(self, key, args, kwargs):
+        try:
+            val = super().get_value(key, args, kwargs)
+        except (KeyError, IndexError):
+            val = f'{{{key}}}'
+        return val
+# }}}
+_partial_fmt = PartialFormatter().format
+
+
+wildcard_constraints:
+    case=r'C3\w-\d+'
+
+
+rule link_wgs_bams:
+    """Link the WGS BAM locally."""
+    input: local_map=BAM_MAP_PTH
+    output:
+        all_bams=expand(LOCALLY_LINKED_WGS_BAM_PATTERN, \
+                        case=CASES, sample_type=SAMPLE_TYPES),
+        all_bais=expand(LOCALLY_LINKED_WGS_BAM_PATTERN + '.bai', \
+                        case=CASES, sample_type=SAMPLE_TYPES)
+    run:
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                case = row['case']
+                sample_type = row['sample_type']
+                sample = f"{case}_{sample_type}"
+                if not (sample in SAMPLES and
+                        row['experimental_strategy'] == 'WGS' and
+                        row['data_format'] == 'BAM' and
+                        row['reference'] == 'hg38'):
+                    continue
+                # Link BAM
+                src_pth = Path(row['data_path'])
+                dst_pth = Path(LOCALLY_LINKED_WGS_BAM_PATTERN.format(case=case, sample_type=sample_type))
+                dst_pth.symlink_to(src_pth)
+
+                # Link BAI
+                src_pth = src_pth.with_suffix('.bam.bai')
+                dst_pth = dst_pth.with_suffix('.bam.bai')
+                dst_pth.symlink_to(src_pth)
+
+
+rule config_manta:
+    """Configure manta."""
+    output: f'{OUTPUT_FOLDER}/manta/{{case}}/runWorkflow.py'
+    input:
+        tumor_bam=_partial_fmt(LOCALLY_LINKED_WGS_BAM_PATTERN, sample_type='tumor'),
+        normal_bam=_partial_fmt(LOCALLY_LINKED_WGS_BAM_PATTERN, sample_type='blood_normal'),
+    params:
+        genome_fa=GENOME_FA,
+        out_folder=f'{OUTPUT_FOLDER}/manta/{{case}}'
+    conda: 'envs/manta.yaml'
+    shell:
+        'configManta.py '
+        '--normalBam {input.normal_bam} '
+        '--tumorBam {input.tumor_bam} '
+        '--referenceFasta {params.genome_fa} '
+        '--callRegions hg38_call_regions.bed.gz '
+        '--generateEvidenceBam '
+        '--runDir {params.out_folder}'
+
+
+rule all_manta_configs:
+    input: [rules.config_manta.output[0].format(case=case) for case in CASES]
+
+
+rule run_manta_somatic_sv:
+    """Run manta somatic SV calling."""
+    output:
+        somatic_sv_vcf=f'{OUTPUT_FOLDER}/manta/{{case}}/results/variants/somaticSV.vcf.gz'
+    input: rules.config_manta.output[0]
+    conda: 'envs/manta.yaml'
+    threads: 8
+    shell: '{input} -j {threads} --quiet'
+
+
+rule all_manta_somatic_svs:
+    input: [rules.run_manta_somatic_sv.output['somatic_sv_vcf'].format(case=case) for case in CASES]

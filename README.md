@@ -60,6 +60,8 @@ Explore different RNA gene quantification methods (HTSeq and featureCounts).
 ### `201909_extract_tcga_mc3_mut` on denali
 Extract TCGA GBM somatic mutation from TCGA MC3 (hg38 lifted over) mutation calls.
 
+### `201909_call_structural_variant` on katmai
+Call structural variant using manta and Lumpy.
 
 
 ## Ad-hoc cohort
