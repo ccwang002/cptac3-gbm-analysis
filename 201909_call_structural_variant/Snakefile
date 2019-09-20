@@ -110,4 +110,29 @@ rule run_manta_somatic_sv:
 
 
 rule all_manta_somatic_svs:
-    input: [rules.run_manta_somatic_sv.output['somatic_sv_vcf'].format(case=case) for case in CASES]
+    input: [rules.run_manta_somatic_sv.output.somatic_sv_vcf.format(case=case) for case in CASES]
+
+
+rule delly_call_sv:
+    """Run DELLY SV calling."""
+    output: sv_bcf=f'{OUTPUT_FOLDER}/delly/raw_call/{{case}}.bcf'
+    input:
+        tumor_bam=_partial_fmt(LOCALLY_LINKED_WGS_BAM_PATTERN, sample_type='tumor'),
+        normal_bam=_partial_fmt(LOCALLY_LINKED_WGS_BAM_PATTERN, sample_type='blood_normal'),
+        exclude_regions='external_data/delly/human.hg38.excl.tsv',
+        genome_fa=GENOME_FA,
+    log: 'logs/delly/raw_call/{case}.log'
+    # Number of threads should match the number of BAMs
+    threads: 2
+    shell:
+        "OMP_NUM_THREADS={threads} "
+        "./delly call "
+        "-x {input.exclude_regions} "
+        "-o {output.sv_bcf} "
+        "-g {input.genome_fa} "
+        "{input.tumor_bam} "
+        "{input.normal_bam} >{log}"  # log is at stdout
+
+
+rule all_delly_raw_svs:
+    input: [rules.delly_call_sv.output.sv_bcf.format(case=case) for case in CASES]
