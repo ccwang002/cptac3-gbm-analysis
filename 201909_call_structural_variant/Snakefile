@@ -75,6 +75,7 @@ rule link_wgs_bams:
                 dst_pth.symlink_to(src_pth)
 
 
+# Manta {{{
 rule config_manta:
     """Configure manta."""
     output: f'{OUTPUT_FOLDER}/manta/{{case}}/runWorkflow.py'
@@ -95,10 +96,6 @@ rule config_manta:
         '--runDir {params.out_folder}'
 
 
-rule all_manta_configs:
-    input: [rules.config_manta.output[0].format(case=case) for case in CASES]
-
-
 rule run_manta_somatic_sv:
     """Run manta somatic SV calling."""
     output:
@@ -108,14 +105,44 @@ rule run_manta_somatic_sv:
     threads: 8
     shell: '{input} -j {threads} --quiet'
 
+# }}}
+
+
+rule all_manta_configs:
+    input: [rules.config_manta.output[0].format(case=case) for case in CASES]
+
 
 rule all_manta_somatic_svs:
     input: [rules.run_manta_somatic_sv.output.somatic_sv_vcf.format(case=case) for case in CASES]
 
 
+# DELLY {{{
+rule gen_delly_sample_tsv:
+    """Generate the tumor control sample TSV."""
+    output: tsv=f'{OUTPUT_FOLDER}/delly/samples.tsv'
+    input: all_bams=rules.link_wgs_bams.output.all_bams
+    run:
+        with open(output.tsv, 'w') as f:
+            for bam in input.all_bams:
+                case, sample_type = Path(bam).stem.split('_', 1)
+                # Parse the SM tag inside the BAM
+                sample_id = next(shell(
+                    "samtools view -H {bam} "
+                    "| grep -o -E 'SM:CPT[0-9]+' "
+                    "| head -n 1 "
+                    "| cut -d':' -f 2",
+                    iterable=True
+                )).strip()
+                if sample_type == 'tumor':
+                    delly_sample_type = 'tumor'
+                else:
+                    delly_sample_type = 'control'
+                print(sample_id, delly_sample_type, sep='\t', file=f)
+
+
 rule delly_call_sv:
     """Run DELLY SV calling."""
-    output: sv_bcf=f'{OUTPUT_FOLDER}/delly/raw_call/{{case}}.bcf'
+    output: bcf=f'{OUTPUT_FOLDER}/delly/raw_call/{{case}}.bcf'
     input:
         tumor_bam=_partial_fmt(LOCALLY_LINKED_WGS_BAM_PATTERN, sample_type='tumor'),
         normal_bam=_partial_fmt(LOCALLY_LINKED_WGS_BAM_PATTERN, sample_type='blood_normal'),
@@ -128,11 +155,34 @@ rule delly_call_sv:
         "OMP_NUM_THREADS={threads} "
         "./delly call "
         "-x {input.exclude_regions} "
-        "-o {output.sv_bcf} "
+        "-o {output.bcf} "
         "-g {input.genome_fa} "
         "{input.tumor_bam} "
         "{input.normal_bam} >{log}"  # log is at stdout
 
 
+rule delly_filter_somatic_per_sample_sv:
+    """Filter DELLY to keep only somatic SVs per sample."""
+    output: bcf=f'{OUTPUT_FOLDER}/delly/somatic_pre_sv/{{case}}.bcf'
+    input:
+        raw_bcf=rules.delly_call_sv.output.bcf,
+        tsv=rules.gen_delly_sample_tsv.output.tsv
+    shell:
+        "./delly filter "
+        "-f somatic "
+        "-v 10 "  # min tumor coverage
+        "-p "  # pass only calls
+        "-o {output.bcf} "
+        "-s {input.tsv} "
+        "{input.raw_bcf} "
+        ">/dev/null 2>/dev/null"
+
+# }}}
+
+
 rule all_delly_raw_svs:
-    input: [rules.delly_call_sv.output.sv_bcf.format(case=case) for case in CASES]
+    input: [rules.delly_call_sv.output.bcf.format(case=case) for case in CASES]
+
+
+rule all_delly_somatic_per_sample_svs:
+    input: [rules.delly_filter_somatic_per_sample_sv.output.bcf.format(case=case) for case in CASES]
