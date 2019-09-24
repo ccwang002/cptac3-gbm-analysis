@@ -105,6 +105,15 @@ rule run_manta_somatic_sv:
     threads: 8
     shell: '{input} -j {threads} --quiet'
 
+
+rule filter_manta_pass_only:
+    """Filter manta somatic SV to be PASS only."""
+    output: vcf=f'{OUTPUT_FOLDER}/manta/{{case}}/results/variants/somaticSV.pass_only.vcf.gz'
+    input: vcf=rules.run_manta_somatic_sv.output.somatic_sv_vcf
+    shell: 'bcftools view '
+           '-f .,PASS '
+           '-Oz {input} '
+           '-o {output}'
 # }}}
 
 
@@ -114,6 +123,10 @@ rule all_manta_configs:
 
 rule all_manta_somatic_svs:
     input: [rules.run_manta_somatic_sv.output.somatic_sv_vcf.format(case=case) for case in CASES]
+
+
+rule all_manta_pass_only_svs:
+    input: [rules.filter_manta_pass_only.output.vcf.format(case=case) for case in CASES]
 
 
 # DELLY {{{
