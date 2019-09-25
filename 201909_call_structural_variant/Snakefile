@@ -190,6 +190,16 @@ rule delly_filter_somatic_per_sample_sv:
         "{input.raw_bcf} "
         ">/dev/null 2>/dev/null"
 
+
+rule filter_delly_precise_only:
+    """Filter DELLY somatic SV to be PRECISE only."""
+    output: vcf=f'{OUTPUT_FOLDER}/delly/somatic_pre_sv/{{case}}.precise_only.vcf.gz'
+    input: bcf=rules.delly_filter_somatic_per_sample_sv.output.bcf
+    shell: 'bcftools view '
+           '-Oz '
+           "--exclude 'INFO/IMPRECISE=1' "
+           '{input} '
+           '-o {output} 2>/dev/null'
 # }}}
 
 
@@ -199,3 +209,7 @@ rule all_delly_raw_svs:
 
 rule all_delly_somatic_per_sample_svs:
     input: [rules.delly_filter_somatic_per_sample_sv.output.bcf.format(case=case) for case in CASES]
+
+
+rule all_delly_precise_only_svs:
+    input: [rules.filter_delly_precise_only.output.vcf.format(case=case) for case in CASES]
