@@ -1,0 +1,46 @@
+---
+title: "Collect splicing GTFs"
+output: html_notebook
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+gbm_discovery_cases = read_lines('../../201901_locate_discovery_data/cptac3_gbm_discovery_samples.list')
+```
+
+```{r}
+all_gtf_tbl = list.files('../external_data/summary_dats', full.names = TRUE) %>%
+    map_dfr(
+        read_tsv, 
+        col_types =cols(
+            .default = col_character(),
+            `# Case Name` = col_character(),
+            Disease = col_character(),
+            `Output File Path` = col_character(),
+            `Output File Format` = col_character()
+        )) %>%
+    mutate(case_id = str_split(`# Case Name`, '_', n = 2) %>% map_chr(~ .x[[1]]))
+```
+
+```{r}
+gbm_gtf_tbl = all_gtf_tbl %>%
+    filter(case_id %in% gbm_discovery_cases) %>%
+    select(case_id, sample_type = `Sample Type`, gtf_path = `Output File Path`)
+```
+
+```{r}
+gbm_gtf_tbl %>% write_tsv('../processed_data/gbm_all_gtfs.tsv')
+```
+
+Copy the files 
+```
+gbm_gtf_tbl %>%
+    pwalk(function(case_id, sample_type, gtf_path, ...) {
+        dst_pth = str_interp('../processed_data/splicing_transcript_gtfs/${case_id}.gtf')
+        file.copy(gtf_path, dst_pth, overwrite = TRUE, copy.date = TRUE)
+    })
+```
+

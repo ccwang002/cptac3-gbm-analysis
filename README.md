@@ -63,6 +63,9 @@ Extract TCGA GBM somatic mutation from TCGA MC3 (hg38 lifted over) mutation call
 ### `201909_call_structural_variant` on katmai
 Call structural variant using manta and Lumpy.
 
+### `201910_novel_splicing` on katmai
+Collect novel splicing transcripts from the CPTAC_splicing pipeline.
+
 
 ## Ad-hoc cohort
 ### `201904_locate_adhoc_data` on denali
