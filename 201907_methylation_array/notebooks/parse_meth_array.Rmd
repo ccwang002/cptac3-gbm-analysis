@@ -12,7 +12,7 @@ library(tidyverse)
 
 Read the beta values per probe
 ```{r}
-meth_tbl <- read_feather('../processed_data/cptac3_gbm_epic_meth_array.batch1-9.feather')
+meth_tbl <- read_feather('../processed_data/cptac3_gbm_epic_meth_array.batch1-9_complete.feather')
 ```
 
 Read EPIC methylation array hg38 manifest and annotaiton from <https://zwdzwd.github.io/InfiniumAnnotation>
@@ -125,7 +125,7 @@ meth_se <- SummarizedExperiment(
     colData = coldata_df,
     assays = list(beta_val=meth_mat),
     metadata = list(
-        cohort = 'CPTAC3 GBM adhoc cohort (batch 1 to 9)',
+        cohort = 'CPTAC3 GBM adhoc cohort (batch 1 to 9; complete)',
         description = 'Beta values of Illumina EPIC DNA methylation microarry',
         pipeline = str_c(
             'Based on the hg38 aligned data from Ding Lab CPTAC methylation pipeline v1.1 ',
@@ -145,7 +145,7 @@ meth_se <- SummarizedExperiment(
 ```
 
 ```{r}
-saveRDS(meth_se, '../processed_data/gbm_dna_meth.batch1-9.rds')
+saveRDS(meth_se, '../processed_data/gbm_dna_meth.batch1-9_complete.rds')
 ```
 
 ```{r}
