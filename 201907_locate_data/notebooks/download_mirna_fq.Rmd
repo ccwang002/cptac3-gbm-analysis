@@ -26,7 +26,7 @@ gbm_seq_data <- read_tsv(
 ```
 
 ```{r}
-bam_maps <- list.files('../../matt_catalog', '.*.BamMap.dat$', full.names = TRUE) %>%
+bam_maps <- list.files('../../matt_catalog/BamMap', '.*.BamMap.dat$', full.names = TRUE) %>%
     set_names(str_match(., '.*/([^.]+).BamMap.dat$')[, 2]) %>%
     map(function(pth) {
         read_tsv(pth, col_types = cols(.default = col_character(), filesize = col_double())) %>%
@@ -38,12 +38,12 @@ bam_maps <- list.files('../../matt_catalog', '.*.BamMap.dat$', full.names = TRUE
 
 ```{r}
 all_mirna_fq_tbl <- gbm_seq_data %>%
-    filter(experimental_strategy == 'miRNA-Seq', data_format == 'FASTQ')
+    filter(experimental_strategy == 'miRNA-Seq', data_format == 'BAM')
 ```
 
 ```{r}
 katmai_mirna_fq_tbl <- bam_maps$katmai %>% 
-    filter(experimental_strategy == 'miRNA-Seq', data_format == 'FASTQ')
+    filter(experimental_strategy == 'miRNA-Seq', data_format == 'BAM')
 ```
 
 Katmai has some miRNA samples to be removed:
@@ -56,6 +56,14 @@ New miRNA samples:
 ```{r}
 all_mirna_fq_tbl %>%
     filter(!sample_name %in% katmai_mirna_fq_tbl$sample_name)
+```
+
+```{r}
+all_mirna_fq_tbl %>%
+    filter(!sample_name %in% katmai_mirna_fq_tbl$sample_name) %>%
+    filter(sample_type == 'tissue_normal') %>% 
+    pull(case) %>%
+    str_c(collapse = ', ')
 ```
 
 
