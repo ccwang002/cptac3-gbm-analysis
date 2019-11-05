@@ -117,6 +117,10 @@ cohort_seq_tbl <- cohort_seq_tbl %>%
         has_mirna_tumor_raw = case %in% get_seq_case_by_filter(
             experimental_strategy == 'miRNA-Seq', data_format == 'BAM',
             reference == 'hg38', sample_type == 'tumor'
+        ),
+        has_mirna_normal_raw = case %in% get_seq_case_by_filter(
+            experimental_strategy == 'miRNA-Seq', data_format == 'BAM',
+            reference == 'hg38', sample_type == 'tissue_normal'
         )
     )
 ```
