@@ -1,6 +1,6 @@
 # CPTAC3 data catalog
 
-Holds details about CPTAC3 data at GDC and in Ding Lab.
+Holds details about CPTAC3 data at GDC and results at DCC, as well as details about downloaded data
 
 ## Overview 
 
@@ -8,7 +8,6 @@ Holds details about CPTAC3 data at GDC and in Ding Lab.
     * This also defines the cohort (discovery or confirmatory) and batch of each case.  Note that each case may be in multiple batches
 * `CPTAC3.AR.dat`: Details about all sequence data (WGS, WXS, RNA-Seq, miRNA-Seq) at GDC associated with all known cases
     * Note that this was previously called `CPTAC3.SR.dat`
-* `*.BamMap.dat`: "BamMap" files for various systems indicating locations of downloaded hg19, hg38, and FASTQ sequence data
 * `CPTAC3.Demographics.dat`: Demographic information associated with all known cases
 * `CPTAC3.file-summary.txt`: Summary of files available for each case on GDC. Lists counts of tumor (T), blood normal (N), and adjacent / tissue normal (A) for each of
     * WGS.hg19 - WGS data as submitted to GDC.  Assuming hg19
@@ -21,15 +20,15 @@ Holds details about CPTAC3 data at GDC and in Ding Lab.
     * RNA.hg38 - Harmonized RNA-Seq data
         * Harmonization generates chimeric, genomic, and transcriptome BAM files, so each entry will have 3 of each sample type
     * miRNA.hg38 - Harmonized miRNA-Seq data
-* `*.BamMap-summary.txt` - summary of files available on a given system as well as GDC.
-    * For given system (e.g., katmai), format is similar to CPTAC3.file-summary.txt, except that upper-case symbol indicates presence on given system
-      and lower-case symbol indicates that that sample is in GDC but not on system
+* `./BamMap` - has details about GDC data downloaded to Ding Lab
+    * `*.BamMap.dat`: "BamMap" files for various systems indicating locations of downloaded hg19, hg38, and FASTQ sequence data
+    * `*.BamMap-summary.txt` - summary of files available on a given system as well as GDC.
+        * For given system (e.g., katmai), format is similar to CPTAC3.file-summary.txt, except that upper-case symbol indicates presence on given system
+          and lower-case symbol indicates that that sample is in GDC but not on system
+* `./DCC_Analysis_Summary` - has details about analyses uploaded to DCC
 
 
 ## Details
-### Reference information
-
-[Pipeline Development Roadmap](https://docs.google.com/spreadsheets/d/1Q0GdJpyqJAJBAwk7VkI0Jbqtyldnm4qRjwLjxgLLxRE/edit?usp=drive_web&ouid=101417742046588217932)
 
 ### Cases file
 
@@ -47,6 +46,24 @@ scripts in [CPTAC3.discover](https://github.com/ding-lab/discover.CPTAC3.b1)
 
 Note that submitted reads are listed as having reference hg19 for WXS and WGS and hg38 for miRNA-Seq.  This appears to be empirically
 true, but subject to change.
+
+### DCC Analysis Summary
+
+Files here track analyses uploaded to DCC, with one file per analysis pipeline.  DCC Analysis Summary files have
+the following columns:
+```
+ 1. case
+ 2. disease
+ 3. pipeline_name
+ 4. pipeline_version
+ 5. timestamp
+ 6. DCC_path
+ 7. filesize
+ 8. file_format
+ 9. md5sum
+```
+
+Additional columns are specific to individual pipelines and will typically indicate the input data associated with this analysis.
 
 ### BamMap files
 
