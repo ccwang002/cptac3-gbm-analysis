@@ -66,6 +66,9 @@ Call structural variant using manta and Lumpy.
 ### `201910_novel_splicing` on katmai
 Collect novel splicing transcripts from the CPTAC_splicing pipeline.
 
+### `201911_run_chimerascan` on katmai
+Run RNA gene fusion using chimerascan. 
+
 
 ## Ad-hoc cohort
 ### `201904_locate_adhoc_data` on denali
