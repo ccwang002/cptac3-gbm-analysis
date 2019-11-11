@@ -1,0 +1,106 @@
+import csv
+from textwrap import dedent
+from pathlib import Path
+import string
+import uuid
+
+CASE_LIST_PTH = 'cases_with_rnaseq.list'
+BAM_MAP_PTH = '../matt_catalog/BamMap/katmai.BamMap.dat'
+LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN = 'external_data/CPTAC_RNA_fq/{sample}.{strand}.fastq.gz'
+OUTPUT_FOLDER = '/diskmnt/Projects/cptac_scratch_4/CPTAC3_GBM/201911_chimerascan/output'
+# GDC References
+GENOME_FA = '/diskmnt/Datasets/Reference/GRCh38.d1.vd1/GRCh38.d1.vd1.fa'
+CHIMERASCAN_INDEX_FOLDER = '/diskmnt/Projects/cptac_scratch_4/CPTAC3_GBM/201911_chimerascan/GDC_GENCODE_v22_index'
+
+
+with open(CASE_LIST_PTH) as f:
+    CASES = f.read().splitlines()
+
+tumors = [f'{case}_tumor' for case in CASES if case.startswith('C3')]
+gtex_normals = [
+    f'{case}_tissue_normal'
+    for case in CASES if case.startswith('PT-')
+]
+
+SAMPLES = [*tumors, *gtex_normals]
+
+
+class PartialFormatter(string.Formatter):
+    """A partial string formatter.
+
+    Example:
+
+        >>> fmt = PartialFormatter()
+        >>> fmt.format('Sale on {date} is {num_box}', date='2019-08-07')
+        'Sale on 2019-08-07 is {num_box}'
+
+    """
+    def get_value(self, key, args, kwargs):
+        try:
+            val = super().get_value(key, args, kwargs)
+        except (KeyError, IndexError):
+            val = f'{{{key}}}'
+        return val
+
+_partial_fmt = PartialFormatter()
+
+
+rule link_gdc_rna_fastqs:
+    """Link the GDC RNA-seq fastqs locally."""
+    input: local_map=BAM_MAP_PTH
+    output:
+        all_fqs=expand(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, sample=SAMPLES, strand=['R1', 'R2'])
+    run:
+        with open(input['local_map']) as f:
+            reader = csv.DictReader(f, dialect='excel-tab')
+            for row in reader:
+                sample = f"{row['case']}_{row['sample_type']}"
+                if not (sample in SAMPLES and
+                        row['experimental_strategy'] == 'RNA-Seq' and
+                        row['data_format'] == 'FASTQ'):
+                    continue
+                full_sample_name = row['# sample_name']
+                # get the RNA strand, R1 or R2
+                strand = full_sample_name.rsplit('.', 2)[-2]
+                assert strand in ('R1', 'R2')
+                src_pth = Path(row['data_path'])
+                dst_pth = Path(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN
+                               .format(sample=sample, strand=strand))
+                dst_pth.symlink_to(src_pth)
+
+
+rule run_chimerascan:
+    """Run Chimerascan on one sample."""
+    output:
+        bedpe=f'{OUTPUT_FOLDER}/{{sample}}/chimeras.bedpe',
+    input:
+        r1_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R1'),
+        r2_fq=_partial_fmt.format(LOCALLY_LINKED_RNASEQ_FASTQ_PATTERN, strand='R2')
+    params:
+        index_folder=CHIMERASCAN_INDEX_FOLDER,
+        out_folder=f'{OUTPUT_FOLDER}/{{sample}}'
+    log: 'logs/chimerascan/{sample}.log'
+    threads: 8
+    shell:
+        dedent(r'''
+        docker run -it --rm -u $(id -u):$(id -g) \
+            --group-add $(grep cptac /etc/group | cut -d: -f3) \
+            -v /diskmnt:/diskmnt \
+            -v $(pwd):/pwd \
+            cgrlab/chimerascan \
+            chimerascan_run.py \
+                -v \
+                -p {threads} \
+                --quals sanger \
+                --library-type fr-firststrand \
+                {params.index_folder} \
+                /pwd/{input.r1_fq} /pwd/{input.r2_fq} \
+                {params.out_folder} \
+        > {log}
+        ''')
+
+
+rule chimerascan_all_samples:
+    """Run Chimerascan on all samples."""
+    input:
+        all_bedpes = expand(rules.run_chimerascan.output.bedpe, sample=SAMPLES)
